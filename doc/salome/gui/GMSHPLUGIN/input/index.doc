@@ -1,0 +1,21 @@
+/*!
+
+\mainpage Introduction to GMSHPLUGIN
+
+\b GMSHPLUGIN plugin provide an integration of certain functionnalities of the well known
+<a href="http://www.geuz.org/gmsh/"> <b>Gmsh three-dimensional finite element mesh generator</b></a>.
+It is possible to mesh 2D and 3D geometric entities. The plugin was especialy developped to
+integrate the Gmsh coumpound functionnality.
+
+To manage parameters of the GMSHPLUGIN use \subpage gmsh_2d_3d_hypo_page.
+
+Also all GMSHPLUGIN functionalities are accessible via
+\subpage gmshplugin_python_interface_page "GMSHPLUGIN Python interface".
+
+\image html compound.png "Example of a compound 2D mesh."
+<br>
+
+\image html cube.png "Example of a 3D cube mesh."
+<br>
+
+*/

@@ -1,0 +1,61 @@
+/*!
+
+\page gmsh_2d_3d_hypo_page Gmsh 2D and 3D hypotheses
+
+<b>Gmsh Parameters</b> hypotheses work only with <b>Gmsh 2D</b> and <b>Gmsh 3D</b> algorithms.
+<b>Gmsh 2D</b> and <b>Gmsh 3D</b> algorithms do not require definition of lower-level
+hypotheses and algorithms (2D and 1D for meshing 3D objects and 1D for meshing 2D objects).
+<b>Gmsh 2D</b> and <b>Gmsh 3D</b> algorithms do not support submeshes.
+
+<br>
+\image html Arguments.png Dialog boxes of <b>Gmsh 2D</b> and <b> Gmsh 3D</b> algorithms.
+
+The <b>Arguments tab</b> of the dialog boxes is very similar to the original <a href="http://www.geuz.org/gmsh/"> <b> Gmsh </b></a>
+GUI general mesh option tab.
+One familiar with the original interface can refer to the <a href="http://www.geuz.org/gmsh/doc/texinfo/gmsh.html">
+<b> Gmsh documentation </b></a> for more informations.
+We briefly describe each argument of the <b>Arguments tab</b> and give the original corresponding Gmsh keyword
+(refering to <a href="http://www.geuz.org/gmsh/doc/texinfo/gmsh.html#Mesh-options-list"> <b> Gmsh Mesh options list</b></a>):
+- <b>Name</b> - allows to define the name for the algorithm ("Gmsh Parameters" by default).
+- <b>2D algorithm</b> - allows to choose the Gmsh 2D algorithm for both 2D and 3D meshes.
+Original corresponding Gmsh keyword is <b>"Mesh.Algorithm"</b>.
+- <b>3D algorithm</b> - allows to choose the Gmsh 3D algorithm for 3D meshes.
+Original corresponding Gmsh keyword is <b>"Mesh.Algorithm3D"</b>.
+- <b>Recombine all triangular meshes</b> - if this box is checked in, Gmsh will recombine triangles into quadrangles.
+Original corresponding Gmsh keyword is <b>"Mesh.RecombineAll"</b> (set to 1 if the box is checked in, else 0).
+- <b>Subdivision algorithm</b> - allows to choose the subdivision algorithm.
+Original corresponding Gmsh keyword is <b>"Mesh.SubdivisionAlgorithm"</b>.
+- <b>Remeshing algorithm</b> - allows to choose the remeshing algorithm.
+Original corresponding Gmsh keyword is <b>"Mesh.RemeshAlgorithm"</b>.
+- <b>Remeshing parametrization</b> - allows to choose the remeshing parametrization.
+Original corresponding Gmsh keyword is <b>"Mesh.RemeshParametrization"</b>.
+- <b>Smoothing steps</b> - Number of steps to smooth the final mesh.
+Original corresponding Gmsh keyword is <b>"Mesh.Smoothing"</b>.
+- <b>Element size factor</b> - factor used to linearly increase or decrease the default mesh size.
+Original corresponding Gmsh keyword is <b>"Mesh.CharacteristicLengthFactor"</b>.
+- <b>Max Size</b> - maximum linear dimensions for mesh cells.
+Original corresponding Gmsh keyword is <b>"Mesh.CharacteristicLengthMax"</b>.
+- <b>Min Size</b> - minimum linear dimensions for mesh cells.
+Original corresponding Gmsh keyword is <b>"Mesh.CharacteristicLengthMin"</b>.
+- <b>Second Order</b> - if this box is checked in, the algorithm will create second order nodes on the mesh,
+which actually will become quadratic.
+Original corresponding Gmsh keyword is <b>"Mesh.ElementOrder"</b> (set to 2 if the box is checked in, else 1).
+- <b>Use incomplete elements</b> - if this box is checked in (default), quadratic elements will be incomplete.
+For example a quadrangle will have 8 nodes if incomplete, 9 nodes if complete. See 
+<a href="http://www.geuz.org/gmsh/doc/texinfo/gmsh.html#Node-ordering"> <b> Node ordering </b></a> for more informations.
+Be carefull with the case of pyramides. Complete pyramides will have 14 nodes but there is no pyra14 available in smesh.
+The last node created by Gmsh will then be ignored and using complete element can lead to orphelin nodes.
+Original corresponding Gmsh keyword is <b>"Mesh.SecondOrderIncomplete"</b> (set to 1 if the box is checked in, else 0).
+
+<br>
+\image html Compounds.png Coumpounds tab of the dialog boxe.
+
+In the Compounds tab of the dialog boxes, it is possible to choose the following arguments:
+- <b>Add</b> - allows to add geometrical defined groups of edges or groups of faces as compounds.
+Each group will be treated as a single entity during meshing.
+When meshed, the single entity will be reparametrized as a single surface, whose mesh can thus cross internal boundaries.
+- <b>Remove</b> - deletes selected rows from the table.
+
+*/
+
+

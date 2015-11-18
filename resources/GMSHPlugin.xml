@@ -1,0 +1,74 @@
+<?xml version='1.0' encoding='us-ascii'?>
+<!DOCTYPE meshers PUBLIC "" "desktop.dtd">
+<!--
+  Copyright (C) 2012-2013  ALNEOS
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License.
+
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+
+  See http://www.alneos.com/ or email : contact@alneos.fr
+
+-->
+
+<!--  GUI customization for MESH component  -->
+
+<meshers>
+
+<meshers-group name="GMSH"
+               resources="GMSHPlugin"
+               server-lib="GMSHEngine"
+               gui-lib="GMSHPluginGUI">
+  
+  <hypotheses>
+    <hypothesis type="GMSH_Parameters"
+        label-id="Gmsh Parameters"
+        icon-id="gmsh.png"
+        dim="3"/>
+    <hypothesis type="GMSH_Parameters_2D"
+        label-id="Gmsh Parameters"
+        icon-id="gmsh.png"
+        dim="2"/>
+  </hypotheses>
+  
+  <algorithms>
+
+    <algorithm type="GMSH"
+               label-id="Gmsh"
+               icon-id="gmsh.png"
+               hypos="GMSH_Parameters"
+               dim="3"
+               support-submeshes="false">
+      <python-wrap>
+        <algo>GMSH=Tetrahedron(algo=smeshBuilder.GMSH)</algo>
+        <hypo>GMSH_Parameters=Parameters()</hypo>
+      </python-wrap>
+    </algorithm>
+  
+    <algorithm type="GMSH_2D"
+               label-id="Gmsh"
+               icon-id="gmsh.png"
+               hypos="GMSH_Parameters_2D"
+               output="TRIA,QUAD"
+               dim="2"
+               support-submeshes="false">
+      <python-wrap>
+        <algo>GMSH_2D=Triangle(algo=smeshBuilder.GMSH_2D)</algo>
+        <hypo>GMSH_Parameters_2D=Parameters()</hypo>
+      </python-wrap>
+    </algorithm>
+    
+  </algorithms>
+</meshers-group>
+
+</meshers>

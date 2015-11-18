@@ -1,0 +1,17 @@
+/*!
+
+\page gmshplugin_python_interface_page Python Interface
+
+Python package GMSHPluginBuilder defines several classes, destined for creation of the 2D and 3D meshes.
+
+Documentation for GMSHPlugin package is available in linear form grouped by classes, declared in the GMSHPluginBuilder.py file.
+
+Below you can see an example of usage of the GMSHPluginBuilder package for mesh generation:
+
+\anchor example_GMSHPlugin
+<h2>Example of 2d and 3d mesh generation with GMSH:</h2>
+\tui_script{gmshdemo.py}
+
+*/
+
+

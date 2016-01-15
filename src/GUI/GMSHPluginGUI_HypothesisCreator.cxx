@@ -30,7 +30,7 @@
 
 #include <SalomeApp_Tools.h>
 #include <LightApp_SelectionMgr.h>
-#include <SALOME_ListIteratorOfListIO.hxx>
+#include <SALOME_ListIO.hxx>
 
 #include <QComboBox>
 #include <QLabel>

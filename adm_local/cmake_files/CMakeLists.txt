@@ -1,10 +1,10 @@
-#!/bin/sh
-# Copyright (C) 2012-2013  ALNEOS
+# Copyright (C) 2012-2015  ALNEOS
+# Copyright (C) 2016  EDF R&D
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
 # License as published by the Free Software Foundation; either
-# version 2.1 of the License.
+# version 2.1 of the License, or (at your option) any later version.
 #
 # This library is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,14 +15,17 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# See http://www.alneos.com/ or email : contact@alneos.fr
+# See http://www.salome-platform.org/ or email : webmaster.salome@opencascade.com
 #
 
-rm -rf autom4te.cache aclocal.m4 configure make_config
-find . -name "*~" -print -exec rm {} \;
-find . -name "*.pyc" -print -exec rm {} \;
-#exit
-# ==================== ON SORT AVANT
+# ===============================================================
+# Files to be installed
+# ===============================================================
 
-find . -name Makefile.in | xargs rm -f
-( cd adm_local/unix/config_files && rm -f config.* depcomp install-sh ltmain.sh missing py-compile )
+# These files are data, module or lib files
+SET(_adm_data
+  FindGMSH.cmake
+  FindSalomeGMSH.cmake
+  FindSalomeGMSHPLUGIN.cmake
+)
+INSTALL(FILES ${_adm_data} DESTINATION ${SALOME_INSTALL_CMAKE_LOCAL})

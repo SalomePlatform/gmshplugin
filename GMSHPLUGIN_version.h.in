@@ -1,4 +1,5 @@
-// Copyright (C) 2012-2013  ALNEOS
+// Copyright (C) 2012-2015  ALNEOS
+// Copyright (C) 2016  EDF R&D
 //
 // This library is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Lesser General Public
@@ -16,15 +17,26 @@
 //
 // See http://www.alneos.com/ or email : contact@alneos.fr
 //
+
 #if !defined(__GMSHPLUGIN_VERSION_H__)
 #define __GMSHPLUGIN_VERSION_H__
 
-/*
-  GMSHPLUGIN_VERSION is (major << 16) + (minor << 8) + patch.
+/*!
+  Specify version of SALOME GMSHPLUGIN module, as follows
+
+  GMSHPLUGIN_VERSION_MAJOR       : (integer) number identifying major version
+  GMSHPLUGIN_VERSION_MINOR       : (integer) number identifying minor version
+  GMSHPLUGIN_VERSION_MAINTENANCE : (integer) number identifying maintenance version
+  GMSHPLUGIN_VERSION_STR         : (string)  complete version number "major.minor.maintenance"
+  GMSHPLUGIN_VERSION             : (hex)     complete version number (major << 16) + (minor << 8) + maintenance
+  GMSHPLUGIN_DEVELOPMENT         : (integer) indicates development version when set to 1
 */
 
-#define GMSHPLUGIN_VERSION_STR "@VERSION@"
-#define GMSHPLUGIN_VERSION     @XVERSION@
-#define GMSHPLUGIN_DEVELOPMENT @VERSION_DEV@
+#define GMSHPLUGIN_VERSION_MAJOR       @SALOMEGMSHPLUGIN_MAJOR_VERSION@
+#define GMSHPLUGIN_VERSION_MINOR       @SALOMEGMSHPLUGIN_MINOR_VERSION@
+#define GMSHPLUGIN_VERSION_MAINTENANCE @SALOMEGMSHPLUGIN_PATCH_VERSION@
+#define GMSHPLUGIN_VERSION_STR         "@SALOMEGMSHPLUGIN_VERSION@"
+#define GMSHPLUGIN_VERSION             @SALOMEGMSHPLUGIN_XVERSION@
+#define GMSHPLUGIN_DEVELOPMENT         @SALOMEGMSHPLUGIN_VERSION_DEV@
 
 #endif // __GMSHPLUGIN_VERSION_H__

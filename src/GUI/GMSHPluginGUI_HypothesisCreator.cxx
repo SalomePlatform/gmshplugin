@@ -1,4 +1,5 @@
-// Copyright (C) 2012-2013  ALNEOS
+// Copyright (C) 2012-2015  ALNEOS
+// Copyright (C) 2016  EDF R&D
 //
 // This library is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Lesser General Public
@@ -245,7 +246,11 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   compoundHeaders << tr( "GMSH_COMPOUND_ENTRY_COLUMN" ) << tr( "GMSH_COMPOUND_NAME_COLUMN" );
   myCompoundTable->setHorizontalHeaderLabels(compoundHeaders);
   myCompoundTable->horizontalHeader()->hideSection(0);
+#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
   myCompoundTable->horizontalHeader()->setResizeMode(QHeaderView::Interactive);
+#else
+  myCompoundTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+#endif
   myCompoundTable->resizeColumnToContents(1);
   myCompoundTable->setAlternatingRowColors(true);
   myCompoundTable->verticalHeader()->hide();

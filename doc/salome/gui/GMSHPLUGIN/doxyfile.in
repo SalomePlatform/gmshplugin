@@ -1,4 +1,5 @@
-# Copyright (C) 2012-2013  ALNEOS
+# Copyright (C) 2012-2015  ALNEOS
+# Copyright (C) 2016  EDF R&D
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -20,8 +21,8 @@
 #---------------------------------------------------------------------------
 # Project related configuration options
 #---------------------------------------------------------------------------
-PROJECT_NAME      = "SALOME GMSHPLUGIN User's Guide"
-OUTPUT_DIRECTORY  = .
+PROJECT_NAME      = "SALOME GMSHPLUGIN Module Reference Manual v.@SALOMEGMSHPLUGIN_VERSION@"
+OUTPUT_DIRECTORY  = GMSHPLUGIN
 CREATE_SUBDIRS	  = NO
 OUTPUT_LANGUAGE   = English
 TAB_SIZE          = 5
@@ -35,67 +36,28 @@ WARNINGS          = YES
 #---------------------------------------------------------------------------
 #Input related options
 #---------------------------------------------------------------------------
-INPUT             = @srcdir@/input
+INPUT             = @CMAKE_CURRENT_SOURCE_DIR@/input
 FILE_PATTERNS     = *.doc
-EXCLUDE           = 
-IMAGE_PATH        = @srcdir@/images
-EXAMPLE_PATH      = @top_srcdir@/doc/salome/examples 
+IMAGE_PATH        = @CMAKE_CURRENT_SOURCE_DIR@/images
+EXAMPLE_PATH      = @CMAKE_SOURCE_DIR@/doc/salome/examples 
 
 #---------------------------------------------------------------------------
 #HTML related options
 #---------------------------------------------------------------------------
 GENERATE_HTML     = YES
 HTML_OUTPUT       = .
-HTML_HEADER       = @builddir@/static/header.html
-HTML_FOOTER       = @srcdir@/static/footer.html
-HTML_EXTRA_STYLESHEET   = @srcdir@/static/salome_extra.css
+HTML_HEADER       = @CMAKE_CURRENT_BINARY_DIR@/static/header.html
+HTML_FOOTER       = @CMAKE_CURRENT_SOURCE_DIR@/static/footer.html
+HTML_EXTRA_STYLESHEET  = @CMAKE_CURRENT_SOURCE_DIR@/static/salome_extra.css
 TOC_EXPAND        = YES
 DISABLE_INDEX     = NO
 GENERATE_TREEVIEW = YES
 TREEVIEW_WIDTH    = 300
 
-
-#---------------------------------------------------------------------------
-# Configuration options related to the dot tool...
-#---------------------------------------------------------------------------
-CLASS_DIAGRAMS         = NO
-HIDE_UNDOC_RELATIONS   = NO
-HAVE_DOT               = NO
-CLASS_GRAPH            = NO
-COLLABORATION_GRAPH    = NO
-GROUP_GRAPHS           = NO
-UML_LOOK               = NO
-TEMPLATE_RELATIONS     = NO
-INCLUDE_GRAPH          = NO
-INCLUDED_BY_GRAPH      = NO
-CALL_GRAPH             = NO
-GRAPHICAL_HIERARCHY    = NO
-DIRECTORY_GRAPH        = NO
-DOT_IMAGE_FORMAT       = jpg
-DOT_FONTNAME           = Arial
-DOT_PATH               =.
-DOTFILE_DIRS           =.
-MAX_DOT_GRAPH_WIDTH    = 1024
-MAX_DOT_GRAPH_HEIGHT   = 1200
-MAX_DOT_GRAPH_DEPTH    = 0
-DOT_TRANSPARENT        = NO
-DOT_MULTI_TARGETS      = NO
-
-
-GENERATE_LEGEND        = NO
-DOT_CLEANUP            = YES
-
-#---------------------------------------------------------------------------
-#SORT related options
-#---------------------------------------------------------------------------
-SORT_GROUP_NAMES = NO
-
-
 #---------------------------------------------------------------------------
 #LaTeX related option
 #---------------------------------------------------------------------------
 GENERATE_LATEX    = NO
-EXTRA_PACKAGES    = amsmath
 
 #---------------------------------------------------------------------------
 #RTF related options

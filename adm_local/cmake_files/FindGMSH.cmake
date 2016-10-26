@@ -1,3 +1,10 @@
+# - Find GMSH
+# Sets the following variables:
+#   GMSH_INCLUDE_DIRS - path to the GMSH include directory
+#   GMSH_LIBRARIES    - path to the GMSH libraries to be linked against
+#
+
+#########################################################################
 # Copyright (C) 2012-2015  ALNEOS
 # Copyright (C) 2016  EDF R&D
 #
@@ -18,5 +25,20 @@
 # See http://www.salome-platform.org/ or email : webmaster.salome@opencascade.com
 #
 
-FILE(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.py")
-INSTALL(FILES ${files} DESTINATION ${SALOME_INSTALL_DOC}/examples/GMSHPLUGIN)
+# ------
+
+MESSAGE(STATUS "Check for GMSH ...")
+
+# ------
+
+SET(GMSH_ROOT_DIR $ENV{GMSH_ROOT_DIR} CACHE PATH "Path to the GMSH.")
+
+IF(GMSH_ROOT_DIR)
+ LIST(APPEND CMAKE_PREFIX_PATH "${GMSH_ROOT_DIR}")
+ENDIF(GMSH_ROOT_DIR)
+
+FIND_PATH(GMSH_INCLUDE_DIRS Gmsh.h PATH_SUFFIXES gmsh)
+FIND_LIBRARY(GMSH_LIBRARIES NAMES Gmsh)
+
+INCLUDE(FindPackageHandleStandardArgs)
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(GMSH REQUIRED_VARS GMSH_INCLUDE_DIRS GMSH_LIBRARIES)

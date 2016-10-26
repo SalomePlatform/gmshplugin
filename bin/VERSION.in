@@ -1,3 +1,3 @@
-[SALOME GMSHPLUGIN] : @VERSION@
-[DEVELOPMENT]         : @VERSION_DEV@
-[DESCRIPTION]         : Gmsh meshing plug-in for SALOME Mesh module
+[SALOME GMSHPLUGIN]  : @SALOMEGMSHPLUGIN_VERSION@
+[DEVELOPMENT]        : @SALOMEGMSHPLUGIN_VERSION_DEV@
+[DESCRIPTION]        : Gmsh meshing plug-in for SALOME Mesh module

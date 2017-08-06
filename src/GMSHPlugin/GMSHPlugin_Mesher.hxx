@@ -17,17 +17,19 @@
 //
 // See http://www.alneos.com/ or email : contact@alneos.fr
 //
+
+#ifndef _GMSHPlugin_Mesher_HXX_
+#define _GMSHPlugin_Mesher_HXX_
+
 #include <stdio.h>
 #include "Gmsh.h"
 #include "GmshConfig.h"
 #include "GModelIO_OCC.h"
+#include "GModelIO_GEO.h"
 #include "Geo.h"
 #include "GEdgeCompound.h"
 #include "GFaceCompound.h"
 #include "MElement.h"
-
-#ifndef _GMSHPlugin_Mesher_HXX_
-#define _GMSHPlugin_Mesher_HXX_
 
 #include "GMSHPlugin_Defs.hxx"
 #include "StdMeshers_FaceSide.hxx"
@@ -42,8 +44,8 @@ class SMESH_Mesh;
 class SMESH_Comment;
 class SMESHDS_Mesh;
 class TopoDS_Shape;
-class TopTools_DataMapOfShapeShape;
-class TopTools_IndexedMapOfShape;
+//class TopTools_DataMapOfShapeShape;
+//class TopTools_IndexedMapOfShape;
 class GMSHPlugin_Hypothesis;
 
 

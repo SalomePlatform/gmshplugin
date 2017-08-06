@@ -218,38 +218,38 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
     TopAbs_ShapeEnum geomType = geomShape.ShapeType();
     if (geomShape.ShapeType() == TopAbs_COMPOUND)// voir s'il ne faut pas mettre une erreur dans le cas contraire
     {
-      //printf("shapeType == TopAbs_COMPOUND\n");
+      MESSAGE("shapeType == TopAbs_COMPOUND");
       TopoDS_Iterator it(geomShape);
       TopAbs_ShapeEnum shapeType = it.Value().ShapeType();
       // compound of edges
       if (shapeType == TopAbs_EDGE)
       {
-        //printf("    shapeType == TopAbs_EDGE :");
+        MESSAGE("    shapeType == TopAbs_EDGE :");
         int num = _gModel->getNumEdges()+1;
-        Curve *curve = Create_Curve(num, MSH_SEGM_COMPOUND, 1, NULL, NULL, -1, -1, 0., 1.);
+        Curve *curve = CreateCurve(num, MSH_SEGM_COMPOUND, 1, NULL, NULL, -1, -1, 0., 1.);
         for (it; it.More(); it.Next())
         {
           TopoDS_Shape topoShape = it.Value();
           ASSERT(topoShape.ShapeType() == shapeType);
-          curve->compound.push_back(occgeo->getOCCEdgeByNativePtr(_gModel, (TopoDS_Edge&)topoShape)->tag());
+          curve->compound.push_back(occgeo->addEdgeToModel(_gModel, (TopoDS_Edge&)topoShape)->tag());
         }
         Tree_Add(_gModel->getGEOInternals()->Curves, &curve);
-        _gModel->importGEOInternals();
+        //_gModel->importGEOInternals();
       }
       // compound of faces
       else if (shapeType == TopAbs_FACE)
       {
-        //printf("    shapeType == TopAbs_FACE :");
+        MESSAGE("    shapeType == TopAbs_FACE :");
         int num = _gModel->getNumFaces()+1;
-        Surface *surface = Create_Surface(num, MSH_SURF_COMPOUND);
+        Surface *surface = CreateSurface(num, MSH_SURF_COMPOUND);
         for (it; it.More(); it.Next())
         {
           TopoDS_Shape topoShape = it.Value();
           ASSERT(topoShape.ShapeType() == shapeType);
-          surface->compound.push_back(occgeo->getOCCFaceByNativePtr(_gModel, (TopoDS_Face&)topoShape)->tag());
+          surface->compound.push_back(occgeo->addFaceToModel(_gModel, (TopoDS_Face&)topoShape)->tag());
         }
         Tree_Add(_gModel->getGEOInternals()->Surfaces, &surface);
-        _gModel->importGEOInternals();
+        _gModel->getGEOInternals()->synchronize(_gModel);
       }
     }
   }

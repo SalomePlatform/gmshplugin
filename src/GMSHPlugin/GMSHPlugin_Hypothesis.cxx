@@ -220,13 +220,13 @@ istream & GMSHPlugin_Hypothesis::LoadFrom(istream & load)
   int is;
   double val;
 
-  isOK = (load >> is);
+  isOK = static_cast<bool>(load >> is);
   if (isOK)
     _is2d = (bool)is;
   else
     load.clear(ios::badbit | load.rdstate());
   
-  isOK = (load >> is);
+  isOK = static_cast<bool>(load >> is);
   if (isOK)
     _algo2d = (Algo2D)is;
   else
@@ -234,74 +234,74 @@ istream & GMSHPlugin_Hypothesis::LoadFrom(istream & load)
   
   if (!_is2d)
   {
-    isOK = (load >> is);
+    isOK = static_cast<bool>(load >> is);
     if (isOK)
       _algo3d = (Algo3D)is;
     else
       load.clear(ios::badbit | load.rdstate());
   }
   
-  isOK = (load >> is);
+  isOK = static_cast<bool>(load >> is);
   if (isOK)
     _recomb2DAlgo = (Recomb2DAlgo)is;
   else
     load.clear(ios::badbit | load.rdstate());
   
-  isOK = (load >> is);
+  isOK = static_cast<bool>(load >> is);
   if (isOK)
     _recombineAll = (bool)is;
   else
     load.clear(ios::badbit | load.rdstate());
   
-  isOK = (load >> is);
+  isOK = static_cast<bool>(load >> is);
   if (isOK)
     _subdivAlgo = (SubdivAlgo)is;
   else
     load.clear(ios::badbit | load.rdstate());
   
-  isOK = (load >> is);
+  isOK = static_cast<bool>(load >> is);
   if (isOK)
     _remeshAlgo = (RemeshAlgo)is;
   else
     load.clear(ios::badbit | load.rdstate());
   
-  isOK = (load >> is);
+  isOK = static_cast<bool>(load >> is);
   if (isOK)
     _remeshPara = (RemeshPara)is;
   else
     load.clear(ios::badbit | load.rdstate());
   
-  isOK = (load >> val);
+  isOK = static_cast<bool>(load >> val);
   if (isOK)
     _smouthSteps = val;
   else
     load.clear(ios::badbit | load.rdstate());
   
-  isOK = (load >> val);
+  isOK = static_cast<bool>(load >> val);
   if (isOK)
     _sizeFactor = val;
   else
     load.clear(ios::badbit | load.rdstate());
   
-  isOK = (load >> val);
+  isOK = static_cast<bool>(load >> val);
   if (isOK)
     _maxSize = val;
   else
     load.clear(ios::badbit | load.rdstate());
   
-  isOK = (load >> val);
+  isOK = static_cast<bool>(load >> val);
   if (isOK)
     _minSize = val;
   else
     load.clear(ios::badbit | load.rdstate());
   
-  isOK = (load >> is);
+  isOK = static_cast<bool>(load >> is);
   if (isOK)
     _secondOrder = (bool)is;
   else
     load.clear(ios::badbit | load.rdstate());
   
-  isOK = (load >> is);
+  isOK = static_cast<bool>(load >> is);
   if (isOK)
     _useIncomplElem = (bool)is;
   else
@@ -309,12 +309,12 @@ istream & GMSHPlugin_Hypothesis::LoadFrom(istream & load)
   
   
   std::string entry;
-  isOK = (load >> entry);
+  isOK = static_cast<bool>(load >> entry);
   if (isOK && entry == "__COMPOUNDS_BEGIN__")
   {
     while (isOK && entry != "__COMPOUNDS_END__")
     {
-      isOK = (load >> entry);
+      isOK = static_cast<bool>(load >> entry);
       if (isOK && entry != "__COMPOUNDS_END__")
         _compounds.insert(entry);
     }

@@ -28,6 +28,6 @@
     <parameter name="plugins" value="GMSHPlugin"/>
   </section>
   <section name="smesh_help">
-    <parameter name="Plug-ins/GMSH plugin User's Guide" value="${GMSHPLUGIN_ROOT_DIR}/share/doc/salome/gui/GMSHPLUGIN/index.html"/>
+    <parameter name="User's Guide/Mesh module/Plug-ins/GMSH plugin" value="${GMSHPLUGIN_ROOT_DIR}/share/doc/salome/gui/GMSHPLUGIN/index.html"/>
   </section>
 </document>

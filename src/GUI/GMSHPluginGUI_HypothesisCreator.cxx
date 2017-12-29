@@ -540,10 +540,8 @@ bool GMSHPluginGUI_HypothesisCreator::readParamsFromWidgets( GmshHypothesisData&
 
 GeomSelectionTools* GMSHPluginGUI_HypothesisCreator::getGeomSelectionTools()
 {
-  _PTR(Study) aStudy = SMESH::GetActiveStudyDocument();
-  if (myGeomSelectionTools == NULL || myGeomSelectionTools->getMyStudy() != aStudy) {
-    delete myGeomSelectionTools;
-    myGeomSelectionTools = new GeomSelectionTools(aStudy);
+  if (myGeomSelectionTools == NULL) {
+    myGeomSelectionTools = new GeomSelectionTools();
   }
   return myGeomSelectionTools;
 }

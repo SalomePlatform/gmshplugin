@@ -69,7 +69,6 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   bool Evaluate(MapShapeNbElems& aResMap);
   
  private:
-  int                  _studyId;
   SMESH_Mesh*          _mesh;
   const TopoDS_Shape&  _shape;
   int                  _algo2d;

@@ -38,7 +38,6 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_GMSH_i:
 public:
   // Constructor
   GMSHPlugin_GMSH_i( PortableServer::POA_ptr thePOA,
-                              int                     theStudyId,
                               ::SMESH_Gen*            theGenImpl );
   // Destructor
   virtual ~GMSHPlugin_GMSH_i();

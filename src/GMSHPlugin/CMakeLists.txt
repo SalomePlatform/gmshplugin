@@ -22,7 +22,7 @@
 # additional include directories
 INCLUDE_DIRECTORIES(
   ${KERNEL_INCLUDE_DIRS}
-  ${CAS_INCLUDE_DIRS}
+  ${OpenCASCADE_INCLUDE_DIR}
   ${GEOM_INCLUDE_DIRS}
   ${SMESH_INCLUDE_DIRS}
   ${VTK_INCLUDE_DIRS}
@@ -35,22 +35,16 @@ INCLUDE_DIRECTORIES(
 # additional preprocessor / compiler flags
 ADD_DEFINITIONS(  
   ${OMNIORB_DEFINITIONS}
-  ${CAS_DEFINITIONS}
+  ${OpenCASCADE_DEFINITIONS}
   ${BOOST_DEFINITIONS}
 )
 
 # libraries to link to
 SET(_link_LIBRARIES
-  ${CAS_TKernel}
-  ${CAS_TKMath}
-  ${CAS_TKBRep}
-  ${CAS_TKGeomBase}
-  ${CAS_TKG2d}
-  ${CAS_TKG3d}
-  ${CAS_TKTopAlgo}
-  ${CAS_TKGeomAlgo}
-  ${CAS_TKCDF}
-  ${GMSH_LIBRARIES}
+  ${OpenCASCADE_FoundationClasses_LIBRARIES}
+  ${OpenCASCADE_ModelingData_LIBRARIES}
+  ${OpenCASCADE_ApplicationFramework_LIBRARIES}
+  ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}
   ${KERNEL_SALOMELocalTrace}
   ${KERNEL_SALOMEBasics}
   ${KERNEL_SalomeGenericObj}

@@ -45,6 +45,7 @@ SET(_link_LIBRARIES
   ${OpenCASCADE_ModelingData_LIBRARIES}
   ${OpenCASCADE_ApplicationFramework_LIBRARIES}
   ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}
+  ${GMSH_LIBRARIES}
   ${KERNEL_SALOMELocalTrace}
   ${KERNEL_SALOMEBasics}
   ${KERNEL_SalomeGenericObj}

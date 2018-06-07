@@ -37,9 +37,8 @@ using namespace std;
  */
 //=============================================================================
 
-GMSHPlugin_GMSH_2D::GMSHPlugin_GMSH_2D(int hypId, int studyId,
-                                               SMESH_Gen* gen)
-  : SMESH_2D_Algo(hypId, studyId, gen)
+GMSHPlugin_GMSH_2D::GMSHPlugin_GMSH_2D(int hypId, SMESH_Gen* gen)
+  : SMESH_2D_Algo(hypId, gen)
 {
   MESSAGE("GMSHPlugin_GMSH_2D::GMSHPlugin_GMSH_2D");
   _name = "GMSH_2D";

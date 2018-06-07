@@ -27,9 +27,9 @@
 using namespace std;
 
 
-GMSHPlugin_Hypothesis::GMSHPlugin_Hypothesis (int hypId, int studyId,
+GMSHPlugin_Hypothesis::GMSHPlugin_Hypothesis (int hypId,
                                                   SMESH_Gen * gen)
-  : SMESH_Hypothesis(hypId, studyId, gen),
+  : SMESH_Hypothesis(hypId, gen),
     _algo2d         (automatic),
     _algo3d         (frontal3),
     _recomb2DAlgo   (standard),

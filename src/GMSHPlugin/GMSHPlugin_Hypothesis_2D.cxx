@@ -29,9 +29,8 @@ using namespace std;
  *  
  */
 //=============================================================================
-GMSHPlugin_Hypothesis_2D::GMSHPlugin_Hypothesis_2D (int hypId, int studyId,
-                                                        SMESH_Gen * gen)
-  : GMSHPlugin_Hypothesis(hypId, studyId, gen)
+GMSHPlugin_Hypothesis_2D::GMSHPlugin_Hypothesis_2D (int hypId, SMESH_Gen * gen)
+  : GMSHPlugin_Hypothesis(hypId, gen)
 
 {
   _name = "GMSH_Parameters_2D";

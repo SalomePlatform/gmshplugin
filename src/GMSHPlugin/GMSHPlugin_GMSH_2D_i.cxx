@@ -34,7 +34,6 @@ using namespace std;
 //=============================================================================
 
 GMSHPlugin_GMSH_2D_i::GMSHPlugin_GMSH_2D_i( PortableServer::POA_ptr thePOA,
-                                                    int                     theStudyId,
                                                     ::SMESH_Gen*            theGenImpl )
      : SALOME::GenericObj_i( thePOA ), 
        SMESH_Hypothesis_i( thePOA ), 
@@ -43,7 +42,6 @@ GMSHPlugin_GMSH_2D_i::GMSHPlugin_GMSH_2D_i( PortableServer::POA_ptr thePOA,
 {
   MESSAGE( "GMSHPlugin_GMSH_2D_i::GMSHPlugin_GMSH_2D_i" );
   myBaseImpl = new ::GMSHPlugin_GMSH_2D( theGenImpl->GetANewId(),
-                                             theStudyId,
                                              theGenImpl );
 }
 

@@ -45,7 +45,7 @@ class GMSH_Algorithm(Mesh_Algorithm):
     
     def __init__(self, mesh, geom=0):
         Mesh_Algorithm.__init__(self)
-        if noGMSHPlugin: print "Warning: GMSHPlugin module unavailable"
+        if noGMSHPlugin: print("Warning: GMSHPlugin module unavailable")
         self.Create(mesh, geom, self.algoType, "libGMSHEngine.so")
         self.params = None
 

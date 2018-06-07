@@ -33,7 +33,7 @@
 class GMSHPLUGIN_EXPORT GMSHPlugin_GMSH: public SMESH_3D_Algo
 {
 public:
-  GMSHPlugin_GMSH(int hypId, int studyId, SMESH_Gen* gen);
+  GMSHPlugin_GMSH(int hypId, SMESH_Gen* gen);
   virtual ~GMSHPlugin_GMSH();
 
   virtual bool CheckHypothesis(SMESH_Mesh& aMesh,

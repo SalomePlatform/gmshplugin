@@ -33,7 +33,7 @@ class GMSHPLUGIN_EXPORT  GMSHPlugin_Hypothesis_2D: public GMSHPlugin_Hypothesis
 {
 public:
 
-  GMSHPlugin_Hypothesis_2D(int hypId, int studyId, SMESH_Gen * gen);
+  GMSHPlugin_Hypothesis_2D(int hypId, SMESH_Gen * gen);
 
 };
 

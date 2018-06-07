@@ -94,7 +94,6 @@ void GMSHPlugin_Mesher::SetParameters(const GMSHPlugin_Hypothesis* hyp)
     _secondOrder     = hyp->GetSecondOrder();
     _useIncomplElem  = hyp->GetUseIncomplElem();
     _is2d            = hyp->GetIs2d();
-    _studyId           = hyp->GetStudyId();
     _compounds       = hyp->GetCompoundOnEntries();
   }
   else
@@ -193,9 +192,6 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
   MESSAGE("GMSHPlugin_Mesher::CreateGmshCompounds");
   
   SMESH_Gen_i* smeshGen_i = SMESH_Gen_i::GetSMESHGen();
-  CORBA::Object_var anObject = smeshGen_i->GetNS()->Resolve("/myStudyManager");
-  SALOMEDS::StudyManager_var aStudyMgr = SALOMEDS::StudyManager::_narrow(anObject);
-  SALOMEDS::Study_var myStudy = aStudyMgr->GetStudyByID(_studyId);
   
   OCC_Internals* occgeo = _gModel->getOCCInternals();
   
@@ -203,13 +199,13 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
   {
     GEOM::GEOM_Object_var aGeomObj;
     TopoDS_Shape geomShape = TopoDS_Shape();
-    SALOMEDS::SObject_var aSObj = myStudy->FindObjectID( (*its).c_str() );
+    SALOMEDS::SObject_var aSObj = SMESH_Gen_i::getStudyServant()->FindObjectID( (*its).c_str() );
     SALOMEDS::GenericAttribute_var anAttr;
     if (!aSObj->_is_nil() && aSObj->FindAttribute(anAttr, "AttributeIOR"))
     {
       SALOMEDS::AttributeIOR_var anIOR = SALOMEDS::AttributeIOR::_narrow(anAttr);
       CORBA::String_var aVal = anIOR->Value();
-      CORBA::Object_var obj = myStudy->ConvertIORToObject(aVal);
+      CORBA::Object_var obj = SMESH_Gen_i::getStudyServant()->ConvertIORToObject(aVal);
       aGeomObj = GEOM::GEOM_Object::_narrow(obj);
     }
     if ( !aGeomObj->_is_nil() )

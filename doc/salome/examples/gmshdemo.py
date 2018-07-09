@@ -3,14 +3,12 @@
 import salome
 
 salome.salome_init()
-theStudy = salome.myStudy
-
 
 from salome.geom import geomBuilder
-geompy = geomBuilder.New(theStudy)
+geompy = geomBuilder.New()
 
 from salome.smesh import smeshBuilder
-smesh = smeshBuilder.New(theStudy)
+smesh = smeshBuilder.New()
 
 from salome.GMSHPlugin import GMSHPluginBuilder
 
@@ -51,4 +49,4 @@ Mesh_2D.Compute()
 Mesh_3D.Compute()
 
 if salome.sg.hasDesktop():
-  salome.sg.updateObjBrowser(1)
+  salome.sg.updateObjBrowser()

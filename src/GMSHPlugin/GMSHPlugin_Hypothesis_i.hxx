@@ -94,10 +94,10 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Hypothesis_i:
   void SetNbSegPerRadius(CORBA::Double theVal);
   CORBA::Double GetNbSegPerRadius();
 
-  void SetLocalSizeOnShape(GEOM::GEOM_Object_ptr GeomObj, CORBA::Double localSize);
-  void SetLocalSizeOnEntry(const char* entry, CORBA::Double localSize);
-  CORBA::Double GetLocalSizeOnEntry(const char* entry);
-  GMSHPlugin::string_array* GetLocalSizeEntries();
+  // void SetLocalSizeOnShape(GEOM::GEOM_Object_ptr GeomObj, CORBA::Double localSize);
+  // void SetLocalSizeOnEntry(const char* entry, CORBA::Double localSize);
+  // CORBA::Double GetLocalSizeOnEntry(const char* entry);
+  // GMSHPlugin::string_array* GetLocalSizeEntries();
   
   void UnsetLocalSizeOnEntry(const char* entry);
 
@@ -163,6 +163,17 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Hypothesis_i:
   // into myMethod2VarParams. It should return a method name for an index of
   // variable parameters. Index is countered from zero
   virtual std::string getMethodOfParameter(const int paramIndex, int nbVars) const;
+
+
+  // Methods for copying mesh definition to other geometry
+
+  // Return geometry this hypothesis depends on. Return false if there is no geometry parameter
+  virtual bool getObjectsDependOn( std::vector< std::string > & entryArray,
+                                   std::vector< int >         & subIDArray ) const;
+
+  // Set new geometry instead of that returned by getObjectsDependOn()
+  virtual bool setObjectsDependOn( std::vector< std::string > & entryArray,
+                                   std::vector< int >         & subIDArray );
 };
 
 #endif

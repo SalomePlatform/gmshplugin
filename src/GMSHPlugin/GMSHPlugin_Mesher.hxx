@@ -91,14 +91,14 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   void CreateGmshCompounds();
   void FillSMesh();
   float DistBoundingBox(SBoundingBox3d& bounds,SPoint3& point);
-  
+
   class mymsg : public GmshMessage
   {
-    private:
-      GModel* _gModel;
-    public:
-      mymsg(GModel* _gModel) : _gModel(_gModel), GmshMessage() {}
-      void operator()(std::string level, std::string msg);
+  private:
+    GModel* _gModel;
+  public:
+    mymsg(GModel* _gModel) :  GmshMessage(), _gModel(_gModel) {}
+    void operator()(std::string level, std::string msg);
   };
 };
 

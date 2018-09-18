@@ -212,7 +212,7 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
       geomShape = smeshGen_i->GeomObjectToShape( aGeomObj.in() );
     
     TopAbs_ShapeEnum geomType = geomShape.ShapeType();
-    if (geomShape.ShapeType() == TopAbs_COMPOUND)// voir s'il ne faut pas mettre une erreur dans le cas contraire
+    if ( geomType == TopAbs_COMPOUND)// voir s'il ne faut pas mettre une erreur dans le cas contraire
     {
       MESSAGE("shapeType == TopAbs_COMPOUND");
       TopoDS_Iterator it(geomShape);
@@ -223,7 +223,7 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
         MESSAGE("    shapeType == TopAbs_EDGE :");
         int num = _gModel->getNumEdges()+1;
         Curve *curve = CreateCurve(num, MSH_SEGM_COMPOUND, 1, NULL, NULL, -1, -1, 0., 1.);
-        for (it; it.More(); it.Next())
+        for ( ; it.More(); it.Next())
         {
           TopoDS_Shape topoShape = it.Value();
           ASSERT(topoShape.ShapeType() == shapeType);
@@ -238,7 +238,7 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
         MESSAGE("    shapeType == TopAbs_FACE :");
         int num = _gModel->getNumFaces()+1;
         Surface *surface = CreateSurface(num, MSH_SURF_COMPOUND);
-        for (it; it.More(); it.Next())
+        for ( ; it.More(); it.Next())
         {
           TopoDS_Shape topoShape = it.Value();
           ASSERT(topoShape.ShapeType() == shapeType);
@@ -295,7 +295,7 @@ void GMSHPlugin_Mesher::FillSMesh()
       std::vector<MVertex*> verts;
       e->getVertices(verts);
       ASSERT(verts.size()==1);
-      SMDS_Mesh0DElement* zeroDElement = 0;
+      //SMDS_Mesh0DElement* zeroDElement = 0;
       // WE DONT ADD 0D ELEMENTS because it does not follow the salome meshers philosophy
       //zeroDElement = meshDS->Add0DElementWithID(verts[0]->getNum(),e->getNum());
       //meshDS->SetMeshElementOnShape(zeroDElement, topoVertex);

@@ -133,8 +133,6 @@ public:
   // Persistence
   virtual ostream & SaveTo(ostream & save);
   virtual istream & LoadFrom(istream & load);
-  friend GMSHPLUGIN_EXPORT ostream & operator <<(ostream & save, GMSHPlugin_Hypothesis & hyp);
-  friend GMSHPLUGIN_EXPORT istream & operator >>(istream & load, GMSHPlugin_Hypothesis & hyp);
 
   /*!
    * \brief Does nothing

@@ -342,3 +342,49 @@ std::string GMSHPlugin_Hypothesis_i::getMethodOfParameter(const int paramIndex,
   }
   return "";
 }
+
+//================================================================================
+/*!
+ * \brief Return geometry this hypothesis depends on. Return false if there is no geometry parameter
+ */
+//================================================================================
+
+bool
+GMSHPlugin_Hypothesis_i::getObjectsDependOn( std::vector< std::string > & entryArray,
+                                             std::vector< int >         & subIDArray ) const
+{
+  typedef ::GMSHPlugin_Hypothesis THyp;
+  const THyp* impl = static_cast<const THyp*>( myBaseImpl );
+
+  const THyp::TCompound& compounds = impl->GetCompoundOnEntries();
+  entryArray.assign( compounds.cbegin(), compounds.cend() );
+
+  return true;
+}
+
+//================================================================================
+/*!
+ * \brief Set new geometry instead of that returned by getObjectsDependOn()
+ */
+//================================================================================
+
+bool
+GMSHPlugin_Hypothesis_i::setObjectsDependOn( std::vector< std::string > & entryArray,
+                                             std::vector< int >         & subIDArray )
+{
+  typedef ::GMSHPlugin_Hypothesis THyp;
+  THyp* impl = static_cast< THyp* >( myBaseImpl );
+
+  size_t iEnt = 0;
+
+  THyp::TCompound& compoundsNew = const_cast< THyp::TCompound& > ( impl->GetCompoundOnEntries() );
+  THyp::TCompound compounds;
+  compounds.swap( compoundsNew );
+
+  THyp::TCompound::const_iterator entry = compounds.cbegin();
+  for ( ; entry != compounds.cend(); ++entry, ++iEnt )
+    if ( !entryArray[ iEnt ].empty() )
+      compoundsNew.insert( entryArray[ iEnt ]);
+
+  return true;
+}

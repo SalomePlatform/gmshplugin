@@ -39,8 +39,8 @@ GMSHPlugin_Hypothesis::GMSHPlugin_Hypothesis (int hypId,
     _remeshPara     (harmonic),
     _smouthSteps    (1),
     _sizeFactor     (1),
-    _maxSize        (1e22),
     _minSize        (0),
+    _maxSize        (1e22),
     _secondOrder    (false),
     _useIncomplElem (true)
 {
@@ -322,17 +322,6 @@ istream & GMSHPlugin_Hypothesis::LoadFrom(istream & load)
   return load;
 }
 
-ostream & operator <<(ostream & save, GMSHPlugin_Hypothesis & hyp)
-{
-  return hyp.SaveTo( save );
-}
-
-istream & operator >>(istream & load, GMSHPlugin_Hypothesis & hyp)
-{
-  return hyp.LoadFrom( load );
-}
-
-
 //================================================================================
 /*!
  * \brief Does nothing
@@ -355,7 +344,7 @@ bool GMSHPlugin_Hypothesis::SetParametersByMesh(const SMESH_Mesh*   theMesh,
 //================================================================================
 
 bool GMSHPlugin_Hypothesis::SetParametersByDefaults(const TDefaults&  dflts,
-                                                      const SMESH_Mesh* theMesh)
+                                                    const SMESH_Mesh* theMesh)
 {
   //_nbSegPerEdge = dflts._nbSegments;
   //_maxSize      = dflts._elemLength;
@@ -366,4 +355,5 @@ bool GMSHPlugin_Hypothesis::SetParametersByDefaults(const TDefaults&  dflts,
   //  _minSize    = GMSHPlugin_Mesher::GetDefaultMinSize( theMesh->GetShapeToMesh(), _maxSize );
 
   //return _nbSegPerEdge && _maxSize > 0;
+  return false;
 }

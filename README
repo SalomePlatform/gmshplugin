@@ -2,12 +2,12 @@
 About SALOME GMSH plug-in
 *************************
 
-\b GMSHPLUGIN plugin provides an integration of certain functionnalities of the
+\b GMSHPLUGIN plugin provides an integration of certain functionalities of the
 well known <a href="http://www.geuz.org/gmsh/"><b>Gmsh three-dimensional finite
 element mesh generator</b></a>.
 
-It is capable to to mesh 2D and 3D geometric entities. The plugin was especialy
-developped to integrate the Gmsh compound functionnality.
+It is capable of meshing 2D and 3D geometric entities. The plugin was especially
+developed to integrate the Gmsh compound functionality.
 
 For more information please visit the SALOME platform web site:
 
@@ -32,8 +32,8 @@ Installation
 Pre-requisites
 --------------
 
-SALOME platform relies on a set of third-party softwares; some of them are needed
-at build time only, while other ones are needed in runtime also.
+SALOME platform relies on a set of third-party software; some of them are needed
+at build time only, while other ones are needed at runtime as well.
 
 For more information about the pre-requisites please visit SALOME platform web
 site:
@@ -54,7 +54,7 @@ Basic Installation
 ------------------
 
 The build procedure of the SALOME platform is implemented with CMake.
-In order to build the plug-in you have to do the following actions: 
+In order to build the plug-in you have to do the following actions:
 
 1. Set up environment for pre-requisites (see "Pre-requisites" section above).
 
@@ -70,7 +70,7 @@ In order to build the plug-in you have to do the following actions:
    where
    - <mode> is either Release or Debug (default: Release);
    - <installation_directory> is a destination folder to install SALOME GMSH
-     plug-in (default: /usr); 
+     plug-in (default: /usr);
    - <path_to_src_dir> is a path to the SALOME GMSH plug-in sources directory.
 
    Note: by default (if CMAKE_INSTALL_PREFIX option is not given), SALOME GMSH

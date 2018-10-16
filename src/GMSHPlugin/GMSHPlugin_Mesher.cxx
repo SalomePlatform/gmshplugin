@@ -296,7 +296,7 @@ void GMSHPlugin_Mesher::FillSMesh()
       e->getVertices(verts);
       ASSERT(verts.size()==1);
       //SMDS_Mesh0DElement* zeroDElement = 0;
-      // WE DONT ADD 0D ELEMENTS because it does not follow the salome meshers philosophy
+      // WE DON'T ADD 0D ELEMENTS because it does not follow the salome meshers philosophy
       //zeroDElement = meshDS->Add0DElementWithID(verts[0]->getNum(),e->getNum());
       //meshDS->SetMeshElementOnShape(zeroDElement, topoVertex);
     }

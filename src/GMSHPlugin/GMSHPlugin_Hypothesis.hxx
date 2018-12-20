@@ -44,7 +44,8 @@ public:
    meshadapt,
    delaunay,
    frontal,
-   delaunayforquad
+   delaunayforquad,
+   packingparallelograms
   };
 
   void Set2DAlgo(Algo2D the2DAlgo);

@@ -51,7 +51,8 @@ enum Algo2D
    meshadapt,
    delaunay,
    frontal,
-   delaunayforquad
+   delaunayforquad,
+   packingparallelograms
   };
 
 enum Algo3D
@@ -147,7 +148,7 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   my2DAlgo = new QComboBox( GroupC1 );
   QStringList types2DAlgo;
   types2DAlgo << tr( "GMSH_AUTOMATIC" ) << tr( "GMSH_MESH_ADAPT" )   << tr( "GMSH_DELAUNAY" ) <<
-                 tr( "GMSH_FRONTAL" )       << tr( "GMSH_DELAUNAY_FOR_QUAD" );
+                 tr( "GMSH_FRONTAL" )       << tr( "GMSH_DELAUNAY_FOR_QUAD" ) << tr( "GMSH_PACKING_OF_PARALLELOGRAMS" );
   my2DAlgo->addItems( types2DAlgo );
   aGroupLayout->addWidget( my2DAlgo, row, 1 );
   row++;

@@ -80,6 +80,10 @@
         <translation>Delaunay pour quads</translation>
     </message>
     <message>
+        <source>GMSH_PACKING_OF_PARALLELOGRAMS</source>
+        <translation>Remplissage de parallélogrammes</translation>
+    </message>
+    <message>
         <source>GMSH_3D_ALGO</source>
         <translation>Algorithme 3D</translation>
     </message>

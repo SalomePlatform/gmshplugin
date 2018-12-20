@@ -142,9 +142,9 @@ void GMSHPlugin_Mesher::SetGmshOptions()
   //*/
   
   std::map <int,double> mapAlgo2d;
-  mapAlgo2d[0]=2; mapAlgo2d[1]=1; mapAlgo2d[2]=5; mapAlgo2d[3]=6; mapAlgo2d[4]=8;
+  mapAlgo2d[0]=2; mapAlgo2d[1]=1; mapAlgo2d[2]=5; mapAlgo2d[3]=6; mapAlgo2d[4]=8; mapAlgo2d[5]=9;
   std::map <int,double> mapAlgo3d;
-  mapAlgo3d[0]=1; mapAlgo3d[1]=4; mapAlgo3d[2]=5; mapAlgo3d[3]=6; mapAlgo3d[4]=7; mapAlgo3d[4]=9;
+  mapAlgo3d[0]=1; mapAlgo3d[1]=4; mapAlgo3d[2]=5; mapAlgo3d[3]=6; mapAlgo3d[4]=7; mapAlgo3d[5]=9;
 
   int ok;
   ok = GmshSetOption("Mesh", "Algorithm"                , mapAlgo2d[_algo2d])    ;

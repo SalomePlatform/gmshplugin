@@ -76,6 +76,10 @@
         <translation>Delaunay for quads</translation>
     </message>
     <message>
+        <source>GMSH_PACKING_OF_PARALLELOGRAMS</source>
+        <translation>Packing of parallelograms</translation>
+    </message>
+    <message>
         <source>GMSH_3D_ALGO</source>
         <translation>3D Algorithm</translation>
     </message>

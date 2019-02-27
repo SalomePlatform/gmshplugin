@@ -22,13 +22,23 @@
 #define _GMSHPlugin_Mesher_HXX_
 
 #include <stdio.h>
+#include "GmshVersion.h"
+#if GMSH_MAJOR_VERSION >=4 
+#include "gmsh.h"
+#else 
 #include "Gmsh.h"
+#endif
 #include "GmshConfig.h"
 #include "GModelIO_OCC.h"
 #include "GModelIO_GEO.h"
 #include "Geo.h"
+#if GMSH_MAJOR_VERSION >=4
+#include "GEdge.h" 
+#include "GFace.h"
+#else
 #include "GEdgeCompound.h"
 #include "GFaceCompound.h"
+#endif
 #include "MElement.h"
 
 #include "GMSHPlugin_Defs.hxx"

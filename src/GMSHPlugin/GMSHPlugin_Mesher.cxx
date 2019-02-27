@@ -57,6 +57,11 @@
 #include <TopTools_MapOfShape.hxx>
 #include <TopoDS.hxx>
 
+#if GMSH_MAJOR_VERSION >=4
+#include <GmshGlobal.h>
+#include <Context.h>
+#endif
+
 using namespace std;
 
 //=============================================================================
@@ -194,6 +199,7 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
   SMESH_Gen_i* smeshGen_i = SMESH_Gen_i::GetSMESHGen();
   
   OCC_Internals* occgeo = _gModel->getOCCInternals();
+  bool toSynchronize = false;
   
   for(std::set<std::string>::const_iterator its = _compounds.begin();its != _compounds.end(); ++its )
   {
@@ -210,13 +216,34 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
     }
     if ( !aGeomObj->_is_nil() )
       geomShape = smeshGen_i->GeomObjectToShape( aGeomObj.in() );
-    
+
     TopAbs_ShapeEnum geomType = geomShape.ShapeType();
     if ( geomType == TopAbs_COMPOUND)// voir s'il ne faut pas mettre une erreur dans le cas contraire
     {
       MESSAGE("shapeType == TopAbs_COMPOUND");
       TopoDS_Iterator it(geomShape);
       TopAbs_ShapeEnum shapeType = it.Value().ShapeType();
+#if GMSH_MAJOR_VERSION >=4
+      std::vector< std::pair< int, int > > dimTags;
+      for ( ; it.More(); it.Next())
+      {
+        const TopoDS_Shape& topoShape = it.Value();
+        ASSERT(topoShape.ShapeType() == shapeType);
+        occgeo->importShapes( &topoShape, false, dimTags );
+      }
+      std::vector<int> tags;
+      int dim = ( shapeType == TopAbs_EDGE ) ? 1 : 2;
+      for ( size_t i = 0; i < dimTags.size(); ++i )
+      {
+        if ( dimTags[i].first == dim )
+          tags.push_back( dimTags[i].second );
+      }
+      if ( !tags.empty() )
+      {
+        _gModel->getGEOInternals()->setCompoundMesh( dim, tags );
+        toSynchronize = true;
+      }
+#else
       // compound of edges
       if (shapeType == TopAbs_EDGE)
       {
@@ -229,6 +256,7 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
           ASSERT(topoShape.ShapeType() == shapeType);
           curve->compound.push_back(occgeo->addEdgeToModel(_gModel, (TopoDS_Edge&)topoShape)->tag());
         }
+        toSynchronize = true;
         Tree_Add(_gModel->getGEOInternals()->Curves, &curve);
         //_gModel->importGEOInternals();
       }
@@ -244,9 +272,12 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
           ASSERT(topoShape.ShapeType() == shapeType);
           surface->compound.push_back(occgeo->addFaceToModel(_gModel, (TopoDS_Face&)topoShape)->tag());
         }
+        toSynchronize = true;
         Tree_Add(_gModel->getGEOInternals()->Surfaces, &surface);
-        _gModel->getGEOInternals()->synchronize(_gModel);
       }
+#endif
+      if ( toSynchronize )
+        _gModel->getGEOInternals()->synchronize(_gModel);
     }
   }
 }
@@ -303,7 +334,8 @@ void GMSHPlugin_Mesher::FillSMesh()
   }
   
   // ADD 1D ELEMENTS
-  for(GModel::eiter it = _gModel->firstEdge(); it != _gModel->lastEdge(); ++it){
+  for(GModel::eiter it = _gModel->firstEdge(); it != _gModel->lastEdge(); ++it)
+  {
     GEdge *gEdge = *it;
     
     // GET topoEdge CORRESPONDING TO gEdge (map if compound)
@@ -320,6 +352,13 @@ void GMSHPlugin_Mesher::FillSMesh()
         continue;
       }
     }
+#if GMSH_MAJOR_VERSION >=4
+    for ( size_t i = 0; i < gEdge->_compound.size(); ++i )
+    {
+      GEdge* gE = static_cast< GEdge* >( gEdge->_compound[ i ]);
+      topoEdges.insert( std::make_pair( gE, *((TopoDS_Edge*)gE->getNativePtr())) );
+    }
+#else
     else 
     {
       // compound case, map construction GEdge/TopoDS_Edge
@@ -329,7 +368,8 @@ void GMSHPlugin_Mesher::FillSMesh()
         topoEdges.insert( pair<GEdge*,TopoDS_Edge>(*itv,*((TopoDS_Edge*)(*itv)->getNativePtr())) );
       }
     }
-    
+#endif
+
     // FILL SMESH FOR topoEdge
     //nodes
     for(unsigned int i = 0; i < gEdge->mesh_vertices.size(); i++)
@@ -438,15 +478,23 @@ void GMSHPlugin_Mesher::FillSMesh()
         continue;
       }
     }
+#if GMSH_MAJOR_VERSION >=4
+    for ( size_t i = 0; i < gFace->_compound.size(); ++i )
+    {
+      GFace* gF = static_cast< GFace* >( gFace->_compound[ i ]);
+      topoFaces.insert( std::make_pair( gF, *((TopoDS_Face*)gF->getNativePtr())) );
+    }
+#else
     else 
     {
       // compound case, map construction GFace/TopoDS_Face
       std::list<GFace*> gFaces = ((GFaceCompound*)gFace)->getCompounds();
       for(std::list<GFace*>::const_iterator itl = gFaces.begin();itl != gFaces.end(); ++itl)
       {
-        topoFaces.insert( pair<GFace*,TopoDS_Face>(*itl,*((TopoDS_Face*)(*itl)->getNativePtr())) );
+        topoFaces.insert( std::make_pair( *itl, *((TopoDS_Face*)(*itl)->getNativePtr())) );
       }
     }
+#endif
     
     // FILL SMESH FOR topoFace
     //nodes
@@ -897,7 +945,9 @@ bool GMSHPlugin_Mesher::Compute()
   
   if (!err)
   {
+#if GMSH_MAJOR_VERSION < 4
     if (_compounds.size() > 0) _gModel->setCompoundVisibility();
+#endif
     FillSMesh();
   }
   delete _gModel;

@@ -30,8 +30,6 @@
 //  Parameters for work of GMSH
 //
 
-using namespace std;
-
 class GMSHPLUGIN_EXPORT GMSHPlugin_Hypothesis: public SMESH_Hypothesis
 {
 public:
@@ -132,8 +130,8 @@ public:
   void UnsetCompoundOnEntry(const std::string& entry);
   
   // Persistence
-  virtual ostream & SaveTo(ostream & save);
-  virtual istream & LoadFrom(istream & load);
+  virtual std::ostream & SaveTo(std::ostream & save);
+  virtual std::istream & LoadFrom(std::istream & load);
 
   /*!
    * \brief Does nothing

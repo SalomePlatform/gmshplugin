@@ -189,7 +189,7 @@ void GMSHPlugin_Hypothesis::UnsetCompoundOnEntry(const std::string& entry)
   }
 }
 
-ostream & GMSHPlugin_Hypothesis::SaveTo(ostream & save)
+std::ostream & GMSHPlugin_Hypothesis::SaveTo(std::ostream & save)
 {
   save << (int)_is2d << " " << _algo2d;
   if (!_is2d)
@@ -214,7 +214,7 @@ ostream & GMSHPlugin_Hypothesis::SaveTo(ostream & save)
   return save;
 }
 
-istream & GMSHPlugin_Hypothesis::LoadFrom(istream & load)
+std::istream & GMSHPlugin_Hypothesis::LoadFrom(std::istream & load)
 {
   bool isOK = true;
   int is;

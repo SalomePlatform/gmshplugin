@@ -247,11 +247,7 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   compoundHeaders << tr( "GMSH_COMPOUND_ENTRY_COLUMN" ) << tr( "GMSH_COMPOUND_NAME_COLUMN" );
   myCompoundTable->setHorizontalHeaderLabels(compoundHeaders);
   myCompoundTable->horizontalHeader()->hideSection(0);
-#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
-  myCompoundTable->horizontalHeader()->setResizeMode(QHeaderView::Interactive);
-#else
   myCompoundTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-#endif
   myCompoundTable->resizeColumnToContents(1);
   myCompoundTable->setAlternatingRowColors(true);
   myCompoundTable->verticalHeader()->hide();

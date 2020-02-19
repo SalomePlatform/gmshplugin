@@ -333,7 +333,7 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
           SMESH_subMesh* sm = _mesh->GetSubMesh( face );
           sm->GetComputeError() =
             SMESH_ComputeError::New
-            ( COMPERR_WARNING, "Compound shape does not belong to the main geometry. Ingnored");
+            ( COMPERR_WARNING, "Compound shape does not belong to the main geometry. Ignored");
         }
       }
       std::vector<int> tags;

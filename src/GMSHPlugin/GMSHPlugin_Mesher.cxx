@@ -64,6 +64,98 @@
 
 using namespace std;
 
+namespace
+{
+  struct ShapeBounds
+  {
+    SBoundingBox3d _bounds;
+    TopoDS_Shape   _shape;
+  };
+
+  //================================================================================
+  /*!
+   * \brief Retrieve ShapeBounds from a compound GEdge
+   */
+  //================================================================================
+
+  bool getBoundsOfShapes( GEdge*                       gEdge,
+                          std::vector< ShapeBounds > & topoEdges )
+  {
+    topoEdges.clear();
+#if GMSH_MAJOR_VERSION >=4
+    for ( size_t i = 0; i < gEdge->_compound.size(); ++i )
+    {
+      GEdge* gE = static_cast< GEdge* >( gEdge->_compound[ i ]);
+      topoEdges.push_back( ShapeBounds{ gE->bounds(), *((TopoDS_Edge*)gE->getNativePtr()) });
+    }
+#else
+    if ( gEdge->geomType() == GEntity::CompoundCurve )
+    {
+      std::vector<GEdge*> gEdges = ((GEdgeCompound*)gEdge)->getCompounds();
+      for ( size_t i = 0; i < gEdges.size(); ++i )
+      {
+        GEdge* gE = gEdges[ i ];
+        topoEdges.push_back( ShapeBounds{ gE->bounds(), *((TopoDS_Edge*)gE->getNativePtr()) });
+      }
+    }
+#endif
+    return topoEdges.size();
+  }
+
+  //================================================================================
+  /*!
+   * \brief Retrieve ShapeBounds from a compound GFace
+   */
+  //================================================================================
+
+  bool getBoundsOfShapes( GFace*                       gFace,
+                          std::vector< ShapeBounds > & topoFaces )
+  {
+    topoFaces.clear();
+#if GMSH_MAJOR_VERSION >=4
+    for ( size_t i = 0; i < gFace->_compound.size(); ++i )
+    {
+      GFace* gF = static_cast< GFace* >( gFace->_compound[ i ]);
+      topoFaces.push_back( ShapeBounds{ gF->bounds(), *((TopoDS_Face*)gF->getNativePtr()) });
+    }
+#else
+    if ( gFace->geomType() == GEntity::CompoundSurface )
+    {
+      std::list<GFace*> gFaces = ((GFaceCompound*)gFace)->getCompounds();
+      for ( std::list<GFace*>::const_iterator itl = gFaces.begin();itl != gFaces.end(); ++itl )
+      {
+        GFace* gF = *itl;
+        topoFaces.push_back( ShapeBounds{ gF->bounds(), *((TopoDS_Face*)gF->getNativePtr()) });
+      }
+    }
+#endif
+    return topoFaces.size();
+  }
+  //================================================================================
+  /*!
+   * \brief Find a shape whose bounding box includes a given point
+   */
+  //================================================================================
+
+  TopoDS_Shape getShapeAtPoint( const SPoint3& point, const std::vector< ShapeBounds > & shapes )
+  {
+    TopoDS_Shape shape;
+    float distmin = std::numeric_limits<float>::max();
+    for ( size_t i = 0; i < shapes.size(); ++i )
+    {
+      float dist = GMSHPlugin_Mesher::DistBoundingBox( shapes[i]._bounds, point );
+      if (dist < distmin)
+      {
+        shape = shapes[i]._shape;
+        distmin = dist;
+        if ( distmin == 0. )
+          break;
+      }
+    }
+    return shape;
+  }
+}
+
 //=============================================================================
 /*!
  *
@@ -71,10 +163,10 @@ using namespace std;
 //=============================================================================
 
 GMSHPlugin_Mesher::GMSHPlugin_Mesher (SMESH_Mesh* mesh,
-                                          const TopoDS_Shape& aShape)
+                                      const TopoDS_Shape& aShape)
   : _mesh    (mesh),
     _shape   (aShape)
-{ 
+{
   // il faudra peut être mettre un truc par defaut si l'utilisateur ne rentre rien en para
   //defaultParameters();
 }
@@ -166,13 +258,13 @@ void GMSHPlugin_Mesher::SetGmshOptions()
   ok = GmshSetOption("Mesh", "SubdivisionAlgorithm"     , (double)_subdivAlgo)   ;
   ASSERT(ok);
   ok = GmshSetOption("Mesh", "RemeshAlgorithm"          , (double)_remeshAlgo)   ;
-  ASSERT(ok);
+  //ASSERT(ok);
   ok = GmshSetOption("Mesh", "RemeshParametrization"    , (double)_remeshPara)   ;
-  ASSERT(ok);
+  //ASSERT(ok);
   ok = GmshSetOption("Mesh", "Smoothing"                , (double)_smouthSteps)  ;
-  ASSERT(ok);
+  //ASSERT(ok);
   ok = GmshSetOption("Mesh", "CharacteristicLengthFactor", _sizeFactor)          ;
-  ASSERT(ok);
+  //ASSERT(ok);
   ok = GmshSetOption("Mesh", "CharacteristicLengthMin"   , _minSize)        ;
   ASSERT(ok);
   ok = GmshSetOption("Mesh", "CharacteristicLengthMax"   , _maxSize)        ;
@@ -290,24 +382,23 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
 
 void GMSHPlugin_Mesher::FillSMesh()
 {
-  MESSAGE("GMSHPlugin_Mesher::FillSMesh");
-  // GET MESH FROM SMESH
   SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
-  
+
   // ADD 0D ELEMENTS
-  for(GModel::viter it = _gModel->firstVertex(); it != _gModel->lastVertex(); ++it){
+  for ( GModel::viter it = _gModel->firstVertex(); it != _gModel->lastVertex(); ++it)
+  {
     GVertex *gVertex = *it;
-    
+
     // GET topoVertex CORRESPONDING TO gVertex
     TopoDS_Vertex topoVertex = *((TopoDS_Vertex*)gVertex->getNativePtr());
-    
+
     if (gVertex->getVisibility() == 0) // belongs to a compound
     {
       SMESH_subMesh* sm = _mesh->GetSubMesh(topoVertex);
       sm->SetIsAlwaysComputed(true); // prevent from displaying errors
       continue;
     }
-    
+
     // FILL SMESH FOR topoVertex
     //nodes
     for(unsigned int i = 0; i < gVertex->mesh_vertices.size(); i++)
@@ -319,18 +410,18 @@ void GMSHPlugin_Mesher::FillSMesh()
         meshDS->SetNodeOnVertex( node, topoVertex );
       }
     }
+    // WE DON'T ADD 0D ELEMENTS because it does not follow the salome meshers philosophy
     //elements
-    for(unsigned int i = 0; i < gVertex->getNumMeshElements(); i++)
-    {
-      MElement *e = gVertex->getMeshElement(i);
-      std::vector<MVertex*> verts;
-      e->getVertices(verts);
-      ASSERT(verts.size()==1);
-      //SMDS_Mesh0DElement* zeroDElement = 0;
-      // WE DON'T ADD 0D ELEMENTS because it does not follow the salome meshers philosophy
-      //zeroDElement = meshDS->Add0DElementWithID(verts[0]->getNum(),e->getNum());
-      //meshDS->SetMeshElementOnShape(zeroDElement, topoVertex);
-    }
+    // for(unsigned int i = 0; i < gVertex->getNumMeshElements(); i++)
+    // {
+    //   MElement *e = gVertex->getMeshElement(i);
+    //   std::vector<MVertex*> verts;
+    //   e->getVertices(verts);
+    //   ASSERT(verts.size()==1);
+    //   SMDS_Mesh0DElement* zeroDElement = 0;
+    //   zeroDElement = meshDS->Add0DElementWithID(verts[0]->getNum(),e->getNum());
+    //   meshDS->SetMeshElementOnShape(zeroDElement, topoVertex);
+    // }
   }
   
   // ADD 1D ELEMENTS
@@ -338,11 +429,11 @@ void GMSHPlugin_Mesher::FillSMesh()
   {
     GEdge *gEdge = *it;
     
-    // GET topoEdge CORRESPONDING TO gEdge (map if compound)
+    // GET topoEdge CORRESPONDING TO gEdge
     TopoDS_Edge topoEdge;
-    std::map<GEdge*,TopoDS_Edge> topoEdges;
+    std::vector< ShapeBounds > topoEdges;
     
-    if(gEdge->geomType() != GEntity::CompoundCurve)
+    if ( gEdge->geomType() != GEntity::CompoundCurve )
     {
       topoEdge = *((TopoDS_Edge*)gEdge->getNativePtr());
       if (gEdge->getVisibility() == 0) // belongs to a compound
@@ -352,95 +443,57 @@ void GMSHPlugin_Mesher::FillSMesh()
         continue;
       }
     }
-#if GMSH_MAJOR_VERSION >=4
-    for ( size_t i = 0; i < gEdge->_compound.size(); ++i )
-    {
-      GEdge* gE = static_cast< GEdge* >( gEdge->_compound[ i ]);
-      topoEdges.insert( std::make_pair( gE, *((TopoDS_Edge*)gE->getNativePtr())) );
-    }
-#else
-    else 
-    {
-      // compound case, map construction GEdge/TopoDS_Edge
-      std::vector<GEdge*> gEdges = ((GEdgeCompound*)gEdge)->getCompounds();
-      for(std::vector<GEdge*>::const_iterator itv = gEdges.begin();itv != gEdges.end(); ++itv)
-      {
-        topoEdges.insert( pair<GEdge*,TopoDS_Edge>(*itv,*((TopoDS_Edge*)(*itv)->getNativePtr())) );
-      }
-    }
-#endif
+    bool isCompound = getBoundsOfShapes( gEdge, topoEdges );
 
     // FILL SMESH FOR topoEdge
     //nodes
-    for(unsigned int i = 0; i < gEdge->mesh_vertices.size(); i++)
+    for ( size_t i = 0; i < gEdge->mesh_vertices.size(); i++ )
     {
       MVertex *v = gEdge->mesh_vertices[i];
-      if(v->getIndex() >= 0)
+      if ( v->getIndex() >= 0 )
       {
         SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),v->getNum());
-        
-        if (topoEdges.size() != 0)
-        {
-          // get back corresponding topoEdge in compound case
-          topoEdge.Nullify();
-          SPoint3 point = v->point();
-          float distmin = std::numeric_limits<float>::max();
-          for(map<GEdge*,TopoDS_Edge>::const_iterator itm=topoEdges.begin();itm != topoEdges.end(); itm++)
-          { 
-            SBoundingBox3d bounds = (*itm).first->bounds();
-            float dist = DistBoundingBox(bounds,point);
-            if (dist < distmin)
-            {
-              topoEdge = (*itm).second;
-              distmin = dist;
-              if (distmin == 0.)
-                break;
-            }
-          }
-        }
-        
+
+        if ( isCompound )
+          topoEdge = TopoDS::Edge( getShapeAtPoint( v->point(), topoEdges ));
+
         meshDS->SetNodeOnEdge( node, topoEdge );
       }
     }
+  }
+
+  for ( GModel::eiter it = _gModel->firstEdge(); it != _gModel->lastEdge(); ++it )
+  {
+    GEdge *gEdge = *it;
+    if ( gEdge->getVisibility() == 0) // belongs to a compound
+      continue;
+
+    TopoDS_Edge topoEdge;
+    std::vector< ShapeBounds > topoEdges;
+    bool isCompound = getBoundsOfShapes( gEdge, topoEdges );
+    if ( !isCompound )
+      topoEdge = *((TopoDS_Edge*)gEdge->getNativePtr());
+
     //elements
-    for(unsigned int i = 0; i < gEdge->getNumMeshElements(); i++)
+    std::vector<MVertex*> verts(3);
+    for ( size_t i = 0; i < gEdge->getNumMeshElements(); i++ )
     {
       MElement *e = gEdge->getMeshElement(i);
-      std::vector<MVertex*> verts;
+      verts.clear();
       e->getVertices(verts);
-      SMDS_MeshEdge* edge = 0;
-      
-      if (topoEdges.size() !=0)
-      {
-        // get back corresponding topoEdge in compound case
-        topoEdge.Nullify();
-        SPoint3 point = e->barycenter();
-        float distmin = std::numeric_limits<float>::max();
-        for(map<GEdge*,TopoDS_Edge>::const_iterator itm=topoEdges.begin();itm != topoEdges.end(); itm++)
-        {
-          SBoundingBox3d bounds = (*itm).first->bounds();
-          float dist = DistBoundingBox(bounds,point);
-          if (dist < distmin)
-          {
-            topoEdge = (*itm).second;
-            distmin = dist;
-            if (distmin == 0.)
-              break;
-          }
-        }
-      }
-      
+
       // if a node wasn't set, it is assigned here
-      for (unsigned j = 0; j < verts.size(); j++)
+      for ( size_t j = 0; j < verts.size(); j++ )
       {
-        if(verts[j]->onWhat()->getVisibility() == 0)
+        if ( verts[j]->onWhat()->getVisibility() == 0 )
         {
           SMDS_MeshNode *node = meshDS->AddNodeWithID(verts[i]->x(),verts[j]->y(),verts[j]->z(),verts[j]->getNum());
           meshDS->SetNodeOnEdge( node, topoEdge );
           verts[j]->setEntity(gEdge);
         }
       }
-      
+
+      SMDS_MeshEdge* edge = 0;
       switch (verts.size())
       {
         case 2:
@@ -456,19 +509,23 @@ void GMSHPlugin_Mesher::FillSMesh()
           ASSERT(false);
           continue;
       }
-      meshDS->SetMeshElementOnShape(edge, topoEdge);
+      if ( isCompound )
+        topoEdge = TopoDS::Edge( getShapeAtPoint( e->barycenter(), topoEdges ));
+
+      meshDS->SetMeshElementOnShape( edge, topoEdge );
     }
   }
 
   // ADD 2D ELEMENTS
-  for(GModel::fiter it = _gModel->firstFace(); it != _gModel->lastFace(); ++it){
+  for ( GModel::fiter it = _gModel->firstFace(); it != _gModel->lastFace(); ++it)
+  {
     GFace *gFace = *it;
-    
-    // GET topoFace CORRESPONDING TO gFace (map if compound)
+
+    // GET topoFace CORRESPONDING TO gFace
     TopoDS_Face topoFace;
-    std::map<GFace*,TopoDS_Face> topoFaces;
-    
-    if(gFace->geomType() != GEntity::CompoundSurface)
+    std::vector< ShapeBounds > topoFaces;
+
+    if ( gFace->geomType() != GEntity::CompoundSurface )
     {
       topoFace = *((TopoDS_Face*)gFace->getNativePtr());
       if (gFace->getVisibility() == 0) // belongs to a compound
@@ -478,86 +535,51 @@ void GMSHPlugin_Mesher::FillSMesh()
         continue;
       }
     }
-#if GMSH_MAJOR_VERSION >=4
-    for ( size_t i = 0; i < gFace->_compound.size(); ++i )
-    {
-      GFace* gF = static_cast< GFace* >( gFace->_compound[ i ]);
-      topoFaces.insert( std::make_pair( gF, *((TopoDS_Face*)gF->getNativePtr())) );
-    }
-#else
-    else 
-    {
-      // compound case, map construction GFace/TopoDS_Face
-      std::list<GFace*> gFaces = ((GFaceCompound*)gFace)->getCompounds();
-      for(std::list<GFace*>::const_iterator itl = gFaces.begin();itl != gFaces.end(); ++itl)
-      {
-        topoFaces.insert( std::make_pair( *itl, *((TopoDS_Face*)(*itl)->getNativePtr())) );
-      }
-    }
-#endif
-    
+    bool isCompound = getBoundsOfShapes( gFace, topoFaces );
+
     // FILL SMESH FOR topoFace
     //nodes
-    for(unsigned int i = 0; i < gFace->mesh_vertices.size(); i++)
+    for ( size_t i = 0; i < gFace->mesh_vertices.size(); i++ )
     {
       MVertex *v = gFace->mesh_vertices[i];
-      if(v->getIndex() >= 0)
+      if ( v->getIndex() >= 0 )
       {
-        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),v->getNum()); 
-        
-        if (topoFaces.size() != 0)
-        {
-          // get back corresponding topoFace in compound case
-          topoFace.Nullify();
-          SPoint3 point = v->point();
-          float distmin = std::numeric_limits<float>::max();
-          for(map<GFace*,TopoDS_Face>::const_iterator itm=topoFaces.begin();itm != topoFaces.end(); itm++)
-          { 
-            SBoundingBox3d bounds = (*itm).first->bounds();
-            float dist = DistBoundingBox(bounds,point);
-            if (dist < distmin)
-            {
-              topoFace = (*itm).second;
-              distmin = dist;
-              if (distmin == 0.)
-                break;
-            }
-          }
-        }
-        
+        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),v->getNum());
+
+        if ( isCompound )
+          topoFace = TopoDS::Face( getShapeAtPoint( v->point(), topoFaces ));
+
         meshDS->SetNodeOnFace( node, topoFace );
       }
     }
+  }
+
+  for ( GModel::fiter it = _gModel->firstFace(); it != _gModel->lastFace(); ++it)
+  {
+    GFace *gFace = *it;
+
+    bool isCompound = ( gFace->geomType() == GEntity::CompoundSurface );
+    if ( !isCompound && gFace->getVisibility() == 0 )
+      continue;  // belongs to a compound
+
+    TopoDS_Face topoFace;
+    std::vector< ShapeBounds > topoFaces;
+    if ( isCompound )
+      getBoundsOfShapes( gFace, topoFaces );
+    else
+      topoFace = *((TopoDS_Face*)gFace->getNativePtr());
+
     //elements
-    for(unsigned int i = 0; i < gFace->getNumMeshElements(); i++)
+    std::vector<MVertex*> verts;
+    for ( size_t i = 0; i < gFace->getNumMeshElements(); i++ )
     {
       MElement *e = gFace->getMeshElement(i);
-      std::vector<MVertex*> verts;
+      verts.clear();
       e->getVertices(verts);
       SMDS_MeshFace* face = 0;
-      
-      if (topoFaces.size() !=0)
-      {
-        // get back corresponding topoFace in compound case
-        topoFace.Nullify();
-        SPoint3 point = e->barycenter();
-        float distmin = std::numeric_limits<float>::max();
-        for(map<GFace*,TopoDS_Face>::const_iterator itm=topoFaces.begin();itm != topoFaces.end(); itm++)
-        {
-          SBoundingBox3d bounds = (*itm).first->bounds();
-          float dist = DistBoundingBox(bounds,point);
-          if (dist < distmin)
-          {
-            topoFace = (*itm).second;
-            distmin = dist;
-            if (distmin == 0.)
-              break;
-          }
-        }
-      }
-      
+
       // if a node wasn't set, it is assigned here
-      for (unsigned j = 0; j < verts.size(); j++)
+      for ( size_t j = 0; j < verts.size(); j++)
       {
         if(verts[j]->onWhat()->getVisibility() == 0)
         {
@@ -612,20 +634,24 @@ void GMSHPlugin_Mesher::FillSMesh()
           ASSERT(false);
           continue;
       }
+
+      if ( isCompound )
+        topoFace = TopoDS::Face( getShapeAtPoint( e->barycenter(), topoFaces ));
+
       meshDS->SetMeshElementOnShape(face, topoFace);
     }
   }
-  
+
   // ADD 3D ELEMENTS
-  for(GModel::riter it = _gModel->firstRegion(); it != _gModel->lastRegion(); ++it){
+  for ( GModel::riter it = _gModel->firstRegion(); it != _gModel->lastRegion(); ++it)
+  {
     GRegion *gRegion = *it;
     if (gRegion->getVisibility() == 0)
       continue;
-    
+
     // GET topoSolid CORRESPONDING TO gRegion
     TopoDS_Solid topoSolid = *((TopoDS_Solid*)gRegion->getNativePtr());
-    
-    //printf("volume %d (%d) contains %d elements\n", meshDS->ShapeToIndex(topoSolid), gRegion->tag(), gRegion->getNumMeshElements());
+
     // FILL SMESH FOR topoSolid
     
     //nodes
@@ -640,10 +666,11 @@ void GMSHPlugin_Mesher::FillSMesh()
     }
     
     //elements
+    std::vector<MVertex*> verts;
     for(unsigned int i = 0; i < gRegion->getNumMeshElements(); i++)
     {
       MElement *e = gRegion->getMeshElement(i);
-      std::vector<MVertex*> verts;
+      verts.clear();
       e->getVertices(verts);
       SMDS_MeshVolume* volume = 0;
       switch (verts.size()){
@@ -823,7 +850,7 @@ void GMSHPlugin_Mesher::FillSMesh()
  */
 //================================================================================
 
-float GMSHPlugin_Mesher::DistBoundingBox(SBoundingBox3d& bounds,SPoint3& point)
+float GMSHPlugin_Mesher::DistBoundingBox(const SBoundingBox3d& bounds, const SPoint3& point)
 {
   SPoint3 min = bounds.min();
   SPoint3 max = bounds.max();
@@ -851,7 +878,7 @@ float GMSHPlugin_Mesher::DistBoundingBox(SBoundingBox3d& bounds,SPoint3& point)
   else
     z = 0.;
   
-  return sqrt(x*x+y*y+z*z);
+  return x*x+y*y+z*z;
 }
 //================================================================================
 /*!

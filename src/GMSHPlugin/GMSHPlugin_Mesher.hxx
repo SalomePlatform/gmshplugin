@@ -78,6 +78,8 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 
   bool Evaluate(MapShapeNbElems& aResMap);
   
+  static float DistBoundingBox(const SBoundingBox3d& bounds, const SPoint3& point);
+
  private:
   SMESH_Mesh*          _mesh;
   const TopoDS_Shape&  _shape;
@@ -100,7 +102,6 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   void SetGmshOptions();
   void CreateGmshCompounds();
   void FillSMesh();
-  float DistBoundingBox(SBoundingBox3d& bounds,SPoint3& point);
 
   class mymsg : public GmshMessage
   {

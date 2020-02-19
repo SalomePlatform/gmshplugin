@@ -45,6 +45,7 @@ typedef struct
   bool                mySecondOrder;
   double              mySizeFactor,myMaxSize, myMinSize;
   QString             myMaxSizeVar, myMinSizeVar, mySmouthStepsVar, mySizeFactorVar;
+  mutable QString     myErrorMsg;
 } GmshHypothesisData;
 
 /*!

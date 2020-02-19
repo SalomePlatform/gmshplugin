@@ -209,6 +209,7 @@ void GMSHPlugin_Mesher::SetParameters(const GMSHPlugin_Hypothesis* hyp)
     _secondOrder     = false;
     _useIncomplElem  = true;
     _is2d            = false;
+    _compounds.clear();
   }
 }
 
@@ -306,14 +307,17 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
       CORBA::Object_var obj = SMESH_Gen_i::getStudyServant()->ConvertIORToObject(aVal);
       aGeomObj = GEOM::GEOM_Object::_narrow(obj);
     }
-    if ( !aGeomObj->_is_nil() )
-      geomShape = smeshGen_i->GeomObjectToShape( aGeomObj.in() );
+    geomShape = smeshGen_i->GeomObjectToShape( aGeomObj.in() );
+    if ( geomShape.IsNull() )
+      continue;
 
     TopAbs_ShapeEnum geomType = geomShape.ShapeType();
     if ( geomType == TopAbs_COMPOUND)// voir s'il ne faut pas mettre une erreur dans le cas contraire
     {
       MESSAGE("shapeType == TopAbs_COMPOUND");
       TopoDS_Iterator it(geomShape);
+      if ( !it.More() )
+        continue;
       TopAbs_ShapeEnum shapeType = it.Value().ShapeType();
 #if GMSH_MAJOR_VERSION >=4
       std::vector< std::pair< int, int > > dimTags;
@@ -321,7 +325,16 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
       {
         const TopoDS_Shape& topoShape = it.Value();
         ASSERT(topoShape.ShapeType() == shapeType);
-        occgeo->importShapes( &topoShape, false, dimTags );
+        if ( _mesh->GetMeshDS()->ShapeToIndex( topoShape ) > 0 )
+          occgeo->importShapes( &topoShape, false, dimTags );
+        else
+        {
+          TopoDS_Shape face = TopExp_Explorer( _shape, shapeType ).Current();
+          SMESH_subMesh* sm = _mesh->GetSubMesh( face );
+          sm->GetComputeError() =
+            SMESH_ComputeError::New
+            ( COMPERR_WARNING, "Compound shape does not belong to the main geometry. Ingnored");
+        }
       }
       std::vector<int> tags;
       int dim = ( shapeType == TopAbs_EDGE ) ? 1 : 2;

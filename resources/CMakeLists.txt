@@ -20,7 +20,8 @@
 
 IF(SALOME_BUILD_GUI)
   SET(GMSHPLUGIN_RESOURCES_FILES_WITH_GUI
-	gmsh.png
+    gmsh.png
+    gmsh_small.png
   )
 ENDIF(SALOME_BUILD_GUI)
 

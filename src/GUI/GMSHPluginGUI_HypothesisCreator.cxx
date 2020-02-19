@@ -110,6 +110,7 @@ bool GMSHPluginGUI_HypothesisCreator::checkParams(QString& msg) const
   readParamsFromHypo( data_old );
   readParamsFromWidgets( data_new );
   bool res = storeParamsToHypo( data_new );
+  msg = data_new.myErrorMsg;
   storeParamsToHypo( data_old );
   return res;
 }
@@ -282,7 +283,7 @@ void GMSHPluginGUI_HypothesisCreator::onAddCompound()
   SALOME_ListIO ListSelectedObjects;
   mySel->selectedObjects(ListSelectedObjects, NULL, false );
   SALOME_ListIteratorOfListIO Object_It(ListSelectedObjects);
-  for (Object_It ; Object_It.More() ; Object_It.Next())
+  for ( ; Object_It.More() ; Object_It.Next())
   {
     Handle(SALOME_InteractiveObject) anObject = Object_It.Value();
     std::string entry, shapeName;
@@ -439,7 +440,7 @@ bool GMSHPluginGUI_HypothesisCreator::readParamsFromHypo( GmshHypothesisData& h_
   
   GMSHPluginGUI_HypothesisCreator* that = (GMSHPluginGUI_HypothesisCreator*)this;
   GMSHPlugin::string_array_var myEntries = h->GetCompoundOnEntries();
-  for ( int i=0 ; i<myEntries->length() ; i++ )
+  for ( CORBA::ULong i=0 ; i<myEntries->length() ; i++ )
     {
       QString entry = myEntries[i].in();
       that->myCompoundSet.insert(entry);
@@ -478,10 +479,19 @@ bool GMSHPluginGUI_HypothesisCreator::storeParamsToHypo( const GmshHypothesisDat
     h->SetSecondOrder( h_data.mySecondOrder );
     h->SetUseIncomplElem( h_data.myUseIncomplElem );
     h->SetIs2d( myIs2D );
-    
+
+    QString mainEntry = getMainShapeEntry();
     for (QSet<QString>::const_iterator i = myCompoundSet.begin(); i != myCompoundSet.end(); ++i)
     {
-      const QString entry = *i;
+      QString entry = *i;
+      if ( myCompoundToRemove.contains( entry ))
+        continue;
+      if ( !mainEntry.isEmpty() && !entry.startsWith( mainEntry ))
+      {
+        h_data.myErrorMsg = "Compound group is not defined on the main geometry";
+        ok = false;
+        break;
+      }
       h->SetCompoundOnEntry(entry.toLatin1().constData());
     }
     for (QSet<QString>::const_iterator i = myCompoundToRemove.begin(); i != myCompoundToRemove.end(); ++i)

@@ -1,4 +1,5 @@
-# Copyright (C) 2013-2019  CEA/DEN, EDF R&D
+# Copyright (C) 2012-2015  ALNEOS
+# Copyright (C) 2016-2020  EDF R&D
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -14,6 +15,7 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
+# See http://www.alneos.com/ or email : contact@alneos.fr
 # See http://www.salome-platform.org/ or email : webmaster.salome@opencascade.com
 #
 

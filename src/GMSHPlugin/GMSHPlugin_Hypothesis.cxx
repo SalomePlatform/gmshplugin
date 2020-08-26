@@ -331,8 +331,8 @@ std::istream & GMSHPlugin_Hypothesis::LoadFrom(std::istream & load)
  * \retval bool - always false
  */
 //================================================================================
-bool GMSHPlugin_Hypothesis::SetParametersByMesh(const SMESH_Mesh*   theMesh,
-                                                  const TopoDS_Shape& theShape)
+bool GMSHPlugin_Hypothesis::SetParametersByMesh(const SMESH_Mesh*   /*theMesh*/,
+                                                  const TopoDS_Shape& /*theShape*/)
 {
   return false;
 }
@@ -344,8 +344,8 @@ bool GMSHPlugin_Hypothesis::SetParametersByMesh(const SMESH_Mesh*   theMesh,
  */
 //================================================================================
 
-bool GMSHPlugin_Hypothesis::SetParametersByDefaults(const TDefaults&  dflts,
-                                                    const SMESH_Mesh* theMesh)
+bool GMSHPlugin_Hypothesis::SetParametersByDefaults(const TDefaults&  /*dflts*/,
+                                                    const SMESH_Mesh* /*theMesh*/)
 {
   //_nbSegPerEdge = dflts._nbSegments;
   //_maxSize      = dflts._elemLength;

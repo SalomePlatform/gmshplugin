@@ -352,7 +352,7 @@ std::string GMSHPlugin_Hypothesis_i::getMethodOfParameter(const int paramIndex,
 
 bool
 GMSHPlugin_Hypothesis_i::getObjectsDependOn( std::vector< std::string > & entryArray,
-                                             std::vector< int >         & subIDArray ) const
+                                             std::vector< int >         & /*subIDArray*/ ) const
 {
   typedef ::GMSHPlugin_Hypothesis THyp;
   const THyp* impl = static_cast<const THyp*>( myBaseImpl );
@@ -371,7 +371,7 @@ GMSHPlugin_Hypothesis_i::getObjectsDependOn( std::vector< std::string > & entryA
 
 bool
 GMSHPlugin_Hypothesis_i::setObjectsDependOn( std::vector< std::string > & entryArray,
-                                             std::vector< int >         & subIDArray )
+                                             std::vector< int >         & /*subIDArray*/ )
 {
   typedef ::GMSHPlugin_Hypothesis THyp;
   THyp* impl = static_cast< THyp* >( myBaseImpl );

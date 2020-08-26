@@ -58,7 +58,6 @@ extern "C"
       aCreator = new GMSHPlugin_Creator_i<GMSHPlugin_Hypothesis_i>;
     else if (strcmp(aHypName, "GMSH_Parameters_2D") == 0)
       aCreator = new GMSHPlugin_Creator_i<GMSHPlugin_Hypothesis_2D_i>;
-    else ;
 
     return aCreator;
   }

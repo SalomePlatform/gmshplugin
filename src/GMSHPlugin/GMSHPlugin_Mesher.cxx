@@ -299,13 +299,13 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
   {
     GEOM::GEOM_Object_var aGeomObj;
     TopoDS_Shape geomShape = TopoDS_Shape();
-    SALOMEDS::SObject_var aSObj = SMESH_Gen_i::getStudyServant()->FindObjectID( (*its).c_str() );
+    SALOMEDS::SObject_var aSObj = SMESH_Gen_i::GetSMESHGen()->getStudyServant()->FindObjectID( (*its).c_str() );
     SALOMEDS::GenericAttribute_var anAttr;
     if (!aSObj->_is_nil() && aSObj->FindAttribute(anAttr, "AttributeIOR"))
     {
       SALOMEDS::AttributeIOR_var anIOR = SALOMEDS::AttributeIOR::_narrow(anAttr);
       CORBA::String_var aVal = anIOR->Value();
-      CORBA::Object_var obj = SMESH_Gen_i::getStudyServant()->ConvertIORToObject(aVal);
+      CORBA::Object_var obj = SMESH_Gen_i::GetSMESHGen()->getStudyServant()->ConvertIORToObject(aVal);
       aGeomObj = GEOM::GEOM_Object::_narrow(obj);
     }
     geomShape = smeshGen_i->GeomObjectToShape( aGeomObj.in() );

@@ -131,8 +131,8 @@ bool GMSHPlugin_GMSH_2D::Evaluate(SMESH_Mesh&         aMesh,
                                         const TopoDS_Shape& aShape,
                                         MapShapeNbElems& aResMap)
 {
-  std::vector<int> aResVec(SMDSEntity_Last);
-  for(int i=SMDSEntity_Node; i<SMDSEntity_Last; i++) aResVec[i] = 0;
+  std::vector<smIdType> aResVec(SMDSEntity_Last);
+  for(smIdType i=SMDSEntity_Node; i<SMDSEntity_Last; i++) aResVec[i] = 0;
   SMESH_subMesh * sm = aMesh.GetSubMesh(aShape);
   aResMap.insert(std::make_pair(sm,aResVec));
   SMESH_ComputeErrorPtr& smError = sm->GetComputeError();

@@ -34,7 +34,7 @@ using namespace std;
 
 //=============================================================================
 /*!
- *  
+ *
  */
 //=============================================================================
 
@@ -53,7 +53,7 @@ GMSHPlugin_GMSH::GMSHPlugin_GMSH(int hypId, SMESH_Gen* gen)
 
 //=============================================================================
 /*!
- *  
+ *
  */
 //=============================================================================
 
@@ -64,19 +64,18 @@ GMSHPlugin_GMSH::~GMSHPlugin_GMSH()
 
 //=============================================================================
 /*!
- *  
+ *
  */
 //=============================================================================
 
-bool GMSHPlugin_GMSH::CheckHypothesis
-                         (SMESH_Mesh& aMesh,
-                          const TopoDS_Shape& aShape,
-                          SMESH_Hypothesis::Hypothesis_Status& aStatus)
+bool GMSHPlugin_GMSH::CheckHypothesis (SMESH_Mesh&                          aMesh,
+                                       const TopoDS_Shape&                  aShape,
+                                       SMESH_Hypothesis::Hypothesis_Status& aStatus)
 {
   MESSAGE("GMSHPlugin_GMSH::CheckHypothesis");
-  
+
   _hypothesis = NULL;
-  
+
   const list<const SMESHDS_Hypothesis*>& hyps = GetUsedHypothesis(aMesh, aShape);
   int nbHyp = hyps.size();
   if (!nbHyp)
@@ -86,7 +85,7 @@ bool GMSHPlugin_GMSH::CheckHypothesis
   }
   // use only the first hypothesis
   const SMESHDS_Hypothesis* theHyp = hyps.front();
-  
+
   string hypName = theHyp->GetName();
   if ( find( _compatibleHypothesis.begin(), _compatibleHypothesis.end(),
              hypName ) != _compatibleHypothesis.end() )
@@ -109,7 +108,7 @@ bool GMSHPlugin_GMSH::CheckHypothesis
 //=============================================================================
 
 bool GMSHPlugin_GMSH::Compute(SMESH_Mesh&         aMesh,
-                                       const TopoDS_Shape& aShape)
+                              const TopoDS_Shape& aShape)
 {
   GMSHPlugin_Mesher mesher(&aMesh, aShape);
   mesher.SetParameters(dynamic_cast<const GMSHPlugin_Hypothesis*>(_hypothesis));
@@ -128,15 +127,15 @@ void GMSHPlugin_GMSH::CancelCompute()
 //=============================================================================
 
 bool GMSHPlugin_GMSH::Evaluate(SMESH_Mesh&         aMesh,
-                                        const TopoDS_Shape& aShape,
-                                        MapShapeNbElems& aResMap)
+                               const TopoDS_Shape& aShape,
+                               MapShapeNbElems& aResMap)
 {
-  std::vector<int> aResVec(SMDSEntity_Last);
-  for(int i=SMDSEntity_Node; i<SMDSEntity_Last; i++) aResVec[i] = 0;
+  std::vector<smIdType> aResVec(SMDSEntity_Last);
+  for(smIdType i=SMDSEntity_Node; i<SMDSEntity_Last; i++) aResVec[i] = 0;
   SMESH_subMesh * sm = aMesh.GetSubMesh(aShape);
   aResMap.insert(std::make_pair(sm,aResVec));
   SMESH_ComputeErrorPtr& smError = sm->GetComputeError();
   smError.reset( new SMESH_ComputeError(COMPERR_ALGO_FAILED,"Evaluation is not implemented",this));
-  
+
   return true;
 }

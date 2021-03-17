@@ -239,7 +239,7 @@ void GMSHPlugin_Mesher::SetGmshOptions()
   printf("We chose _useIncomplElem %d \n", (_useIncomplElem)?1:0);
   printf("We are in dimension      %d \n", (_is2d)?2:3);
   //*/
-  
+
   std::map <int,double> mapAlgo2d;
   mapAlgo2d[0]=2; mapAlgo2d[1]=1; mapAlgo2d[2]=5; mapAlgo2d[3]=6; mapAlgo2d[4]=8; mapAlgo2d[5]=9;
   std::map <int,double> mapAlgo3d;
@@ -249,10 +249,10 @@ void GMSHPlugin_Mesher::SetGmshOptions()
   ok = GmshSetOption("Mesh", "Algorithm"                , mapAlgo2d[_algo2d])    ;
   ASSERT(ok);
   if ( !_is2d)
-    {
+  {
     ok = GmshSetOption("Mesh", "Algorithm3D"            , mapAlgo2d[_algo3d])    ;
     ASSERT(ok);
-    }
+  }
   ok = GmshSetOption("Mesh", "RecombinationAlgorithm"   , (double)_recomb2DAlgo) ;
   ASSERT(ok);
   ok = GmshSetOption("Mesh", "RecombineAll"             , (_recombineAll)?1.:0.) ;
@@ -274,10 +274,10 @@ void GMSHPlugin_Mesher::SetGmshOptions()
   ok = GmshSetOption("Mesh", "ElementOrder"             , (_secondOrder)?2.:1.)  ;
   ASSERT(ok);
   if (_secondOrder)
-    {
+  {
     ok = GmshSetOption("Mesh", "SecondOrderIncomplete"  ,(_useIncomplElem)?1.:0.);
     ASSERT(ok);
-    }
+  }
 }
 
 //================================================================================
@@ -289,9 +289,9 @@ void GMSHPlugin_Mesher::SetGmshOptions()
 void GMSHPlugin_Mesher::CreateGmshCompounds()
 {
   MESSAGE("GMSHPlugin_Mesher::CreateGmshCompounds");
-  
+
   SMESH_Gen_i* smeshGen_i = SMESH_Gen_i::GetSMESHGen();
-  
+
   OCC_Internals* occgeo = _gModel->getOCCInternals();
   bool toSynchronize = false;
   

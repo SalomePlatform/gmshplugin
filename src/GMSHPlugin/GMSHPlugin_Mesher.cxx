@@ -84,11 +84,20 @@ namespace
   {
     topoEdges.clear();
 #if GMSH_MAJOR_VERSION >=4
+#if GMSH_MINOR_VERSION >=3
+    for ( size_t i = 0; i < gEdge->compound.size(); ++i )
+    {
+      GEdge* gE = static_cast< GEdge* >( gEdge->compound[ i ]);
+      topoEdges.push_back( ShapeBounds{ gE->bounds(), *((TopoDS_Edge*)gE->getNativePtr()) });
+    }
+#endif
+#if GMSH_MINOR_VERSION <3
     for ( size_t i = 0; i < gEdge->_compound.size(); ++i )
     {
       GEdge* gE = static_cast< GEdge* >( gEdge->_compound[ i ]);
       topoEdges.push_back( ShapeBounds{ gE->bounds(), *((TopoDS_Edge*)gE->getNativePtr()) });
     }
+#endif
 #else
     if ( gEdge->geomType() == GEntity::CompoundCurve )
     {
@@ -114,11 +123,20 @@ namespace
   {
     topoFaces.clear();
 #if GMSH_MAJOR_VERSION >=4
+#if GMSH_MINOR_VERSION >=3
+    for ( size_t i = 0; i < gFace->compound.size(); ++i )
+    {
+      GFace* gF = static_cast< GFace* >( gFace->compound[ i ]);
+      topoFaces.push_back( ShapeBounds{ gF->bounds(), *((TopoDS_Face*)gF->getNativePtr()) });
+    }
+#endif
+#if GMSH_MINOR_VERSION <3
     for ( size_t i = 0; i < gFace->_compound.size(); ++i )
     {
       GFace* gF = static_cast< GFace* >( gFace->_compound[ i ]);
       topoFaces.push_back( ShapeBounds{ gF->bounds(), *((TopoDS_Face*)gF->getNativePtr()) });
     }
+#endif
 #else
     if ( gFace->geomType() == GEntity::CompoundSurface )
     {
@@ -446,8 +464,13 @@ void GMSHPlugin_Mesher::FillSMesh()
     // GET topoEdge CORRESPONDING TO gEdge
     TopoDS_Edge topoEdge;
     std::vector< ShapeBounds > topoEdges;
-    
+#if GMSH_MAJOR_VERSION >=4
+#if GMSH_MINOR_VERSION >=3
+    if(gEdge->haveParametrization())
+#endif
+#else
     if ( gEdge->geomType() != GEntity::CompoundCurve )
+#endif
     {
       topoEdge = *((TopoDS_Edge*)gEdge->getNativePtr());
       if (gEdge->getVisibility() == 0) // belongs to a compound
@@ -539,7 +562,13 @@ void GMSHPlugin_Mesher::FillSMesh()
     TopoDS_Face topoFace;
     std::vector< ShapeBounds > topoFaces;
 
+#if GMSH_MAJOR_VERSION >=4
+#if GMSH_MINOR_VERSION >=3
+    if(gFace->haveParametrization())
+#endif
+#else
     if ( gFace->geomType() != GEntity::CompoundSurface )
+#endif
     {
       topoFace = *((TopoDS_Face*)gFace->getNativePtr());
       if (gFace->getVisibility() == 0) // belongs to a compound
@@ -572,7 +601,13 @@ void GMSHPlugin_Mesher::FillSMesh()
   {
     GFace *gFace = *it;
 
+#if GMSH_MAJOR_VERSION >=4
+#if GMSH_MINOR_VERSION >=3
+    bool isCompound = (!gFace->haveParametrization());
+#endif
+#else
     bool isCompound = ( gFace->geomType() == GEntity::CompoundSurface );
+#endif
     if ( !isCompound && gFace->getVisibility() == 0 )
       continue;  // belongs to a compound
 

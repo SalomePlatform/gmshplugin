@@ -102,6 +102,7 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   
   void SetGmshOptions();
   void CreateGmshCompounds();
+  void SetCompoundMeshVisibility();
   void FillSMesh();
 
   class mymsg : public GmshMessage

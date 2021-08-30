@@ -52,9 +52,8 @@ public:
   
   enum Algo3D
   {
+   delaunay3,
    frontal3,
-   frontaldelaunay,
-   fontalhex,
    mmg3d,
    rtree
   };

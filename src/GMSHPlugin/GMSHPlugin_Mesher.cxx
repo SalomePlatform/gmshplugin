@@ -257,16 +257,25 @@ void GMSHPlugin_Mesher::SetGmshOptions()
   //*/
 
   std::map <int,double> mapAlgo2d;
-  mapAlgo2d[0]=2; mapAlgo2d[1]=1; mapAlgo2d[2]=5; mapAlgo2d[3]=6; mapAlgo2d[4]=8; mapAlgo2d[5]=9;
+  mapAlgo2d[0]=2; // Automatic
+  mapAlgo2d[1]=1; // MeshAdapt
+  mapAlgo2d[2]=5; // Delaunay
+  mapAlgo2d[3]=6; // Frontal-Delaunay
+  mapAlgo2d[4]=8; // DelQuad (Frontal-Delaunay for Quads)
+  mapAlgo2d[5]=9; // Packing of parallelograms
+
   std::map <int,double> mapAlgo3d;
-  mapAlgo3d[0]=1; mapAlgo3d[1]=4; mapAlgo3d[2]=5; mapAlgo3d[3]=6; mapAlgo3d[4]=7; mapAlgo3d[5]=9;
+  mapAlgo3d[0]=1; // Delaunay
+  mapAlgo3d[1]=4; // Frontal
+  mapAlgo3d[2]=7; // MMG3D
+  mapAlgo3d[3]=9; // R-tree
 
   int ok;
   ok = GmshSetOption("Mesh", "Algorithm"                , mapAlgo2d[_algo2d])    ;
   ASSERT(ok);
   if ( !_is2d)
   {
-    ok = GmshSetOption("Mesh", "Algorithm3D"            , mapAlgo2d[_algo3d])    ;
+    ok = GmshSetOption("Mesh", "Algorithm3D"            , mapAlgo3d[_algo3d])    ;
     ASSERT(ok);
   }
   ok = GmshSetOption("Mesh", "RecombinationAlgorithm"   , (double)_recomb2DAlgo) ;
@@ -310,7 +319,7 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
 
   OCC_Internals* occgeo = _gModel->getOCCInternals();
   bool toSynchronize = false;
-  
+
   for(std::set<std::string>::const_iterator its = _compounds.begin();its != _compounds.end(); ++its )
   {
     GEOM::GEOM_Object_var aGeomObj;
@@ -406,6 +415,60 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
 
 //================================================================================
 /*!
+ * \brief For a compound mesh set the mesh components to be transmitted to SMESH
+ */
+//================================================================================
+
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+void GMSHPlugin_Mesher::SetCompoundMeshVisibility()
+{
+
+  // Loop over all faces, if the face belongs to a compound entry then
+  // for all (boundary) edges whithin the face visibility is set to 0,
+  // if the face doesn't belong to a compound entry then visibility is
+  // set to 1 for all its (boundary) edges. Later, in FillSMesh() func
+  // getVisibility() (returns either 1 or 0) is used to decide weather
+  // the mesh of edge should be transmitted  to SMESH or not.
+
+  for ( GModel::fiter itF = _gModel->firstFace(); itF != _gModel->lastFace(); ++itF )
+  {
+    std::vector< GEdge *> faceEdges = (*itF)->edges();
+
+    for ( auto itE = faceEdges.begin(); itE != faceEdges.end(); ++itE )
+    {
+      if ( ((*itF)->compound.size()) )
+        (*itE)->setVisibility(0);
+      else
+        (*itE)->setVisibility(1);
+    }
+  }
+
+
+  // Loop over all edges, if the  edge belongs to a compound entry then
+  // for all (boundary) vertices whithin the  edge visibility is set to
+  // 0, if the edge doesn't belong to a  compound entry then visibility
+  // is set to 1 for all its (boundary) vertices. Later, in FillSMesh()
+  // func getVisibility() (returns either 1 or 0) is used to decide we-
+  // ather the mesh of vertices should be transmitted  to SMESH or not.
+
+  for ( GModel::eiter itE = _gModel->firstEdge(); itE != _gModel->lastEdge(); ++itE )
+  {
+    std::vector<GVertex *> bndVerticies = (*itE)->vertices();
+
+    for( auto itV = bndVerticies.begin(); itV != bndVerticies.end(); ++itV )
+    {
+            if(((*itE)->compound.size()))
+               (*itV)->setVisibility(0);
+            else
+               (*itV)->setVisibility(1);
+    }
+  }
+
+}
+#endif
+
+//================================================================================
+/*!
  * \brief Write mesh from GModel instance to SMESH instance
  */
 //================================================================================
@@ -453,12 +516,12 @@ void GMSHPlugin_Mesher::FillSMesh()
     //   meshDS->SetMeshElementOnShape(zeroDElement, topoVertex);
     // }
   }
-  
+
   // ADD 1D ELEMENTS
   for(GModel::eiter it = _gModel->firstEdge(); it != _gModel->lastEdge(); ++it)
   {
     GEdge *gEdge = *it;
-    
+
     // GET topoEdge CORRESPONDING TO gEdge
     TopoDS_Edge topoEdge;
     std::vector< ShapeBounds > topoEdges;
@@ -708,7 +771,7 @@ void GMSHPlugin_Mesher::FillSMesh()
     TopoDS_Solid topoSolid = *((TopoDS_Solid*)gRegion->getNativePtr());
 
     // FILL SMESH FOR topoSolid
-    
+
     //nodes
     for(unsigned int i = 0; i < gRegion->mesh_vertices.size(); i++)
     {
@@ -719,7 +782,7 @@ void GMSHPlugin_Mesher::FillSMesh()
         meshDS->SetNodeInVolume( node, topoSolid );
       }
     }
-    
+
     //elements
     std::vector<MVertex*> verts;
     for(unsigned int i = 0; i < gRegion->getNumMeshElements(); i++)
@@ -895,7 +958,7 @@ void GMSHPlugin_Mesher::FillSMesh()
       meshDS->SetMeshElementOnShape(volume, topoSolid);
     }
   }
-  
+
   //return 0;
 }
 
@@ -909,30 +972,30 @@ float GMSHPlugin_Mesher::DistBoundingBox(const SBoundingBox3d& bounds, const SPo
 {
   SPoint3 min = bounds.min();
   SPoint3 max = bounds.max();
-  
+
   float x,y,z;
-  
+
   if (point.x() < min.x())
     x = min.x()-point.x();
   else if (point.x() > max.x())
     x = point.x()-max.x();
   else
     x = 0.;
-  
+
   if (point.y() < min.y())
     y = min.y()-point.y();
   else if (point.y() > max.y())
     y = point.y()-max.y();
   else
     y = 0.;
-  
+
   if (point.z() < min.z())
     z = min.z()-point.z();
   else if (point.z() > max.z())
     z = point.z()-max.z();
   else
     z = 0.;
-  
+
   return x*x+y*y+z*z;
 }
 //================================================================================
@@ -945,7 +1008,7 @@ void  GMSHPlugin_Mesher::mymsg::operator()(std::string level, std::string msg)
 {
   //MESSAGE("level="<< level.c_str() << ", msg=" << msg.c_str()<< "\n");
   printf("level=%s msg=%s\n", level.c_str(), msg.c_str());
-  
+
   if(level == "Fatal" || level == "Error")
   {
     std::ostringstream oss;
@@ -969,7 +1032,7 @@ void  GMSHPlugin_Mesher::mymsg::operator()(std::string level, std::string msg)
         //comment << SMESH_Comment(oss.str);
         //std::string str = oss.str();
         //smError.reset( new SMESH_ComputeError( str ));
-        
+
         // plutot que de faire de la merde ici, on pourait simplement
         // remplir une liste pour dire sur quelles entités gmsh se plante
         // (puis faire le fillsmesh)
@@ -996,9 +1059,9 @@ void  GMSHPlugin_Mesher::mymsg::operator()(std::string level, std::string msg)
 bool GMSHPlugin_Mesher::Compute()
 {
   MESSAGE("GMSHPlugin_Mesher::Compute");
-  
+
   int err = 0;
-  
+
   GmshInitialize();
   SetGmshOptions();
   _gModel = new GModel();
@@ -1024,11 +1087,15 @@ bool GMSHPlugin_Mesher::Compute()
     err = 1;
     MESSAGE("Unrecoverable error during Generation of Gmsh Mesh");
   }
-  
+
   if (!err)
   {
 #if GMSH_MAJOR_VERSION < 4
     if (_compounds.size() > 0) _gModel->setCompoundVisibility();
+#endif
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+    if (_compounds.size() > 0)
+      SetCompoundMeshVisibility();
 #endif
     FillSMesh();
   }

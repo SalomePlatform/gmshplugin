@@ -32,7 +32,7 @@ GMSHPlugin_Hypothesis::GMSHPlugin_Hypothesis (int hypId,
                                                   SMESH_Gen * gen)
   : SMESH_Hypothesis(hypId, gen),
     _algo2d         (automatic),
-    _algo3d         (frontal3),
+    _algo3d         (delaunay3),
     _recomb2DAlgo   (standard),
     _recombineAll   (false),
     _subdivAlgo     (none),

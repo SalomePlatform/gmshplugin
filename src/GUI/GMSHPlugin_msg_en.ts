@@ -84,12 +84,12 @@
         <translation>3D Algorithm</translation>
     </message>
     <message>
-        <source>GMSH_FRONTAL_DELAUNAY</source>
-        <translation>Frontal Delaunay</translation>
+        <source>GMSH_DELAUNAY3</source>
+        <translation>Delaunay</translation>
     </message>
     <message>
-        <source>GMSH_FRONTAL_HEX</source>
-        <translation>Frontal Hex</translation>
+        <source>GMSH_FRONTAL_DELAUNAY</source>
+        <translation>Frontal Delaunay</translation>
     </message>
     <message>
         <source>GMSH_MMG3D</source>

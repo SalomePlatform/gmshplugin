@@ -58,9 +58,8 @@ enum Algo2D
 
 enum Algo3D
   {
+   delaunay3,
    frontal3,
-   frontaldelaunay,
-   fontalhex,
    mmg3d,
    rtree
   };
@@ -130,11 +129,11 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   lay->addWidget( tab );
   QWidget* GroupC1 = new QWidget();
   tab->insertTab( 0, GroupC1, tr( "SMESH_ARGUMENTS" ) );
-  
+
   QGridLayout* aGroupLayout = new QGridLayout( GroupC1 );
   aGroupLayout->setSpacing( 6 );
   aGroupLayout->setMargin( 11 );
-  
+
   int row = 0;
   myName = 0;
   if( isCreation() )
@@ -154,20 +153,20 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   my2DAlgo->addItems( types2DAlgo );
   aGroupLayout->addWidget( my2DAlgo, row, 1 );
   row++;
-  
+
   my3DAlgo = 0;
   if ( !myIs2D )
   {
     aGroupLayout->addWidget( new QLabel( tr( "GMSH_3D_ALGO" ), GroupC1 ), row, 0 );
     my3DAlgo = new QComboBox( GroupC1 );
     QStringList types3DAlgo;
-    types3DAlgo << tr( "GMSH_FRONTAL_DELAUNAY" ) << tr( "GMSH_FRONTAL_HEX" )   << tr( "GMSH_MMG3D" ) <<
-                   tr( "GMSH_R_TREE" );
+    types3DAlgo << tr("GMSH_DELAUNAY3") << tr( "GMSH_FRONTAL_DELAUNAY" ) << tr( "GMSH_MMG3D" ) <<
+	           tr( "GMSH_R_TREE" );
     my3DAlgo->addItems( types3DAlgo );
     aGroupLayout->addWidget( my3DAlgo, row, 1 );
     row++;
   }
-  
+
   aGroupLayout->addWidget( new QLabel( tr( "GMSH_2D_RECOMB_ALGO" ), GroupC1 ), row, 0 );
   myRecomb2DAlgo = new QComboBox( GroupC1 );
   QStringList typesRecomb2DAlgo;
@@ -175,11 +174,11 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   myRecomb2DAlgo->addItems( typesRecomb2DAlgo );
   aGroupLayout->addWidget( myRecomb2DAlgo, row, 1 );
   row++;
-  
+
   myRecombineAll = new QCheckBox( tr( "GMSH_RECOMBINE_ALL" ), GroupC1 );
   aGroupLayout->addWidget( myRecombineAll, row, 0 );
   row++;
-  
+
   aGroupLayout->addWidget( new QLabel( tr( "GMSH_SUBDIV_ALGO" ), GroupC1 ), row, 0 );
   mySubdivAlgo = new QComboBox( GroupC1 );
   QStringList typesSubdivAlgo;
@@ -187,7 +186,7 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   mySubdivAlgo->addItems( typesSubdivAlgo );
   aGroupLayout->addWidget( mySubdivAlgo, row, 1 );
   row++;
-  
+
   aGroupLayout->addWidget( new QLabel( tr( "GMSH_REMESH_ALGO" ), GroupC1 ), row, 0 );
   myRemeshAlgo = new QComboBox( GroupC1 );
   QStringList typesRemeshAlgo;
@@ -195,7 +194,7 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   myRemeshAlgo->addItems( typesRemeshAlgo );
   aGroupLayout->addWidget( myRemeshAlgo, row, 1 );
   row++;
-  
+
   aGroupLayout->addWidget( new QLabel( tr( "GMSH_REMESH_PARA" ), GroupC1 ), row, 0 );
   myRemeshPara = new QComboBox( GroupC1 );
   QStringList typesRemeshPara;
@@ -203,7 +202,7 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   myRemeshPara->addItems( typesRemeshPara );
   aGroupLayout->addWidget( myRemeshPara, row, 1 );
   row++;
-  
+
   aGroupLayout->addWidget( new QLabel( tr( "GMSH_SMOOTHING_STEPS" ), GroupC1 ), row, 0 );
   mySmouthSteps = new SMESHGUI_SpinBox( GroupC1 );
   mySmouthSteps->RangeStepAndValidator( 1, 1000, 1, "length_precision" );
@@ -215,36 +214,36 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   mySizeFactor->RangeStepAndValidator( 1e-06, 1e+06, 0.1, "length_precision" );
   aGroupLayout->addWidget( mySizeFactor, row, 1 );
   row++;
-  
+
   aGroupLayout->addWidget( new QLabel( tr( "GMSH_MIN_SIZE" ), GroupC1 ), row, 0 );
   myMinSize = new SMESHGUI_SpinBox( GroupC1 );
   myMinSize->RangeStepAndValidator( 0.0, 1e+22, 1., "length_precision" );
   aGroupLayout->addWidget( myMinSize, row, 1 );
   row++;
-  
+
   aGroupLayout->addWidget( new QLabel( tr( "GMSH_MAX_SIZE" ), GroupC1 ), row, 0 );
   myMaxSize = new SMESHGUI_SpinBox( GroupC1 );
   myMaxSize->RangeStepAndValidator( 0.0, 1e+22, 1e+21, "length_precision" );
   aGroupLayout->addWidget( myMaxSize, row, 1 );
   row++;
-  
+
   mySecondOrder = new QCheckBox( tr( "GMSH_SECOND_ORDER" ), GroupC1 );
   aGroupLayout->addWidget( mySecondOrder, row, 0 );
-  
+
   myUseIncomplElem = new QCheckBox( tr( "GMSH_USE_INCOMPLETE_ELEMENT" ), GroupC1 );
   aGroupLayout->addWidget( myUseIncomplElem, row, 1 );
   row++;
-  
+
   connect( mySecondOrder, SIGNAL( toggled( bool ) ), this, SLOT( updateWidgets() ) );
-  
+
   // Compounds
   QWidget* compoundGroup = new QWidget();
   tab->insertTab(1, compoundGroup, tr("GMSH_COMPOUND"));
-  
+
   myCompoundTable = new QTableWidget(0, 2, compoundGroup);
   QGridLayout* compoundLayout = new QGridLayout(compoundGroup);
   compoundLayout->addWidget(myCompoundTable, 1, 0, 8, 1);
-  
+
   QStringList compoundHeaders;
   compoundHeaders << tr( "GMSH_COMPOUND_ENTRY_COLUMN" ) << tr( "GMSH_COMPOUND_NAME_COLUMN" );
   myCompoundTable->setHorizontalHeaderLabels(compoundHeaders);
@@ -253,21 +252,21 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   myCompoundTable->resizeColumnToContents(1);
   myCompoundTable->setAlternatingRowColors(true);
   myCompoundTable->verticalHeader()->hide();
-  
+
   QPushButton* addCompoundButton = new QPushButton(tr("GMSH_COMPOUND_ADD"), compoundGroup);
   compoundLayout->addWidget(addCompoundButton, 1, 1, 1, 1);
   QFrame *line2 = new QFrame(compoundGroup);
-  
+
   line2->setFrameShape(QFrame::HLine);
   line2->setFrameShadow(QFrame::Sunken);
   compoundLayout->addWidget(line2, 2, 1, 1, 1);
-  
+
   QPushButton* removeButton = new QPushButton(tr("GMSH_COMPOUND_REMOVE"), compoundGroup);
   compoundLayout->addWidget(removeButton, 3, 1, 1, 1);
 
   connect( addCompoundButton, SIGNAL(clicked()), this, SLOT(onAddCompound()));
   connect( removeButton, SIGNAL(clicked()), this, SLOT(onRemoveCompound()));
-  
+
   return fr;
 }
 
@@ -346,7 +345,7 @@ void GMSHPluginGUI_HypothesisCreator::retrieveParams() const
 {
   GmshHypothesisData data;
   readParamsFromHypo( data );
-  
+
   if( myName )
     myName->setText( data.myName );
   my2DAlgo->setCurrentIndex( data.my2DAlgo );
@@ -379,10 +378,10 @@ void GMSHPluginGUI_HypothesisCreator::retrieveParams() const
     mySecondOrder->setChecked( data.mySecondOrder );
   if ( myUseIncomplElem )
     myUseIncomplElem->setChecked( data.myUseIncomplElem );
-  
+
   GMSHPluginGUI_HypothesisCreator* that = (GMSHPluginGUI_HypothesisCreator*)this;
   that->updateWidgets();
-  
+
   GeomSelectionTools* geomSelectionTools = that->getGeomSelectionTools();
   for (QSet<QString>::const_iterator i = myCompoundSet.begin(); i != myCompoundSet.end(); ++i)
   {
@@ -403,12 +402,12 @@ QString GMSHPluginGUI_HypothesisCreator::storeParams() const
   GmshHypothesisData data;
   readParamsFromWidgets( data );
   storeParamsToHypo( data );
-  
+
   QString valStr = tr("GMSH_MAX_SIZE") + " = " + QString::number( data.myMaxSize ) + "; ";
   valStr += tr("GMSH_MIN_SIZE") + " = " + QString::number( data.myMinSize ) + "; ";
   if ( data.mySecondOrder )
     valStr +=  tr("GMSH_SECOND_ORDER") + "; ";
-  
+
   return valStr;
 }
 
@@ -419,7 +418,7 @@ bool GMSHPluginGUI_HypothesisCreator::readParamsFromHypo( GmshHypothesisData& h_
 
   HypothesisData* data = SMESH::GetHypothesisData( hypType() );
   h_data.myName = isCreation() && data ? data->Label : "";
-  
+
   h_data.my2DAlgo = (int) h->Get2DAlgo();
   if ( !myIs2D )
     h_data.my3DAlgo = (int) h->Get3DAlgo();
@@ -438,7 +437,7 @@ bool GMSHPluginGUI_HypothesisCreator::readParamsFromHypo( GmshHypothesisData& h_
   h_data.myMaxSizeVar = getVariableName("SetMaxSize");
   h_data.mySecondOrder = h->GetSecondOrder();
   h_data.myUseIncomplElem = h->GetUseIncomplElem();
-  
+
   GMSHPluginGUI_HypothesisCreator* that = (GMSHPluginGUI_HypothesisCreator*)this;
   GMSHPlugin::string_array_var myEntries = h->GetCompoundOnEntries();
   for ( CORBA::ULong i=0 ; i<myEntries->length() ; i++ )
@@ -446,7 +445,7 @@ bool GMSHPluginGUI_HypothesisCreator::readParamsFromHypo( GmshHypothesisData& h_
       QString entry = myEntries[i].in();
       that->myCompoundSet.insert(entry);
     }
-  
+
   return true;
 }
 
@@ -530,7 +529,7 @@ bool GMSHPluginGUI_HypothesisCreator::readParamsFromWidgets( GmshHypothesisData&
   h_data.myMaxSizeVar     = myMaxSize->text();
   h_data.mySecondOrder    = mySecondOrder->isChecked();
   h_data.myUseIncomplElem = myUseIncomplElem->isChecked();
-  
+
   // ne semble pas utile dans la mesure ou myCompoundSet n'a pas besoin d'etre modifier
   /*
   GMSHPluginGUI_HypothesisCreator* that = (GMSHPluginGUI_HypothesisCreator*)this;

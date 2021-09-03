@@ -21,6 +21,7 @@
 #ifndef GMSHPLUGINGUI_HypothesisCreator_HeaderFile
 #define GMSHPLUGINGUI_HypothesisCreator_HeaderFile
 
+#include "GmshVersion.h"
 #include "GMSHPluginGUI.h"
 
 #include <SMESHGUI_Hypotheses.h>

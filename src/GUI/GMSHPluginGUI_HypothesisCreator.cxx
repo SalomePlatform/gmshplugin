@@ -56,7 +56,7 @@ enum Algo2D
    packingparallelograms
   };
 
-enum Algo3D
+  enum Algo3D
   {
    delaunay3,
    frontal3,
@@ -64,11 +64,21 @@ enum Algo3D
    rtree
   };
 
-enum Recomb2DAlgo
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+  enum Recomb2DAlgo
+  {
+   simple,
+   blossom,
+   simplefullquads,
+   blossomfullquads
+  };
+#else
+  enum Recomb2DAlgo
   {
    standard,
    blossom
   };
+#endif
 
 enum SubdivAlgo
   {
@@ -170,7 +180,11 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   aGroupLayout->addWidget( new QLabel( tr( "GMSH_2D_RECOMB_ALGO" ), GroupC1 ), row, 0 );
   myRecomb2DAlgo = new QComboBox( GroupC1 );
   QStringList typesRecomb2DAlgo;
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+  typesRecomb2DAlgo << tr( "GMSH_SIMPLE" ) << tr( "GMSH_BLOSSOM" ) << tr( "GMSH_SIMPLE_FULL_QUADS" ) << tr( "GMSH_BLOSSOM_FULL_QUADS" );
+#else
   typesRecomb2DAlgo << tr( "GMSH_STANDARD" ) << tr( "GMSH_BLOSSOM" );
+#endif
   myRecomb2DAlgo->addItems( typesRecomb2DAlgo );
   aGroupLayout->addWidget( myRecomb2DAlgo, row, 1 );
   row++;

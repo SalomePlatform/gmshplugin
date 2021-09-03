@@ -83,29 +83,17 @@ namespace
                           std::vector< ShapeBounds > & topoEdges )
   {
     topoEdges.clear();
-#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
     for ( size_t i = 0; i < gEdge->compound.size(); ++i )
     {
       GEdge* gE = static_cast< GEdge* >( gEdge->compound[ i ]);
       topoEdges.push_back( ShapeBounds{ gE->bounds(), *((TopoDS_Edge*)gE->getNativePtr()) });
     }
-#endif
-#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION <3
+#else
     for ( size_t i = 0; i < gEdge->_compound.size(); ++i )
     {
       GEdge* gE = static_cast< GEdge* >( gEdge->_compound[ i ]);
       topoEdges.push_back( ShapeBounds{ gE->bounds(), *((TopoDS_Edge*)gE->getNativePtr()) });
-    }
-#endif
-#if GMSH_MAJOR_VERSION <4
-    if ( gEdge->geomType() == GEntity::CompoundCurve )
-    {
-      std::vector<GEdge*> gEdges = ((GEdgeCompound*)gEdge)->getCompounds();
-      for ( size_t i = 0; i < gEdges.size(); ++i )
-      {
-        GEdge* gE = gEdges[ i ];
-        topoEdges.push_back( ShapeBounds{ gE->bounds(), *((TopoDS_Edge*)gE->getNativePtr()) });
-      }
     }
 #endif
     return topoEdges.size();
@@ -121,29 +109,17 @@ namespace
                           std::vector< ShapeBounds > & topoFaces )
   {
     topoFaces.clear();
-#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
     for ( size_t i = 0; i < gFace->compound.size(); ++i )
     {
       GFace* gF = static_cast< GFace* >( gFace->compound[ i ]);
       topoFaces.push_back( ShapeBounds{ gF->bounds(), *((TopoDS_Face*)gF->getNativePtr()) });
     }
-#endif
-#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION <3
+#else
     for ( size_t i = 0; i < gFace->_compound.size(); ++i )
     {
       GFace* gF = static_cast< GFace* >( gFace->_compound[ i ]);
       topoFaces.push_back( ShapeBounds{ gF->bounds(), *((TopoDS_Face*)gF->getNativePtr()) });
-    }
-#endif
-#if GMSH_MAJOR_VERSION <4
-    if ( gFace->geomType() == GEntity::CompoundSurface )
-    {
-      std::list<GFace*> gFaces = ((GFaceCompound*)gFace)->getCompounds();
-      for ( std::list<GFace*>::const_iterator itl = gFaces.begin();itl != gFaces.end(); ++itl )
-      {
-        GFace* gF = *itl;
-        topoFaces.push_back( ShapeBounds{ gF->bounds(), *((TopoDS_Face*)gF->getNativePtr()) });
-      }
     }
 #endif
     return topoFaces.size();
@@ -290,12 +266,21 @@ void GMSHPlugin_Mesher::SetGmshOptions()
   //ASSERT(ok);
   ok = GmshSetOption("Mesh", "Smoothing"                , (double)_smouthSteps)  ;
   //ASSERT(ok);
-  ok = GmshSetOption("Mesh", "CharacteristicLengthFactor", _sizeFactor)          ;
-  //ASSERT(ok);
-  ok = GmshSetOption("Mesh", "CharacteristicLengthMin"   , _minSize)        ;
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+  ok = GmshSetOption("Mesh", "MeshSizeFactor"              , _sizeFactor)     ;
   ASSERT(ok);
-  ok = GmshSetOption("Mesh", "CharacteristicLengthMax"   , _maxSize)        ;
+  ok = GmshSetOption("Mesh", "MeshSizeMin"                 , _minSize)        ;
   ASSERT(ok);
+  ok = GmshSetOption("Mesh", "MeshSizeMax"                 , _maxSize)        ;
+  ASSERT(ok);
+#else
+  ok = GmshSetOption("Mesh", "CharacteristicLengthFactor"  , _sizeFactor)     ;
+  ASSERT(ok);
+  ok = GmshSetOption("Mesh", "CharacteristicLengthMin"     , _minSize)        ;
+  ASSERT(ok);
+  ok = GmshSetOption("Mesh", "CharacteristicLengthMax"     , _maxSize)        ;
+  ASSERT(ok);
+#endif
   ok = GmshSetOption("Mesh", "ElementOrder"             , (_secondOrder)?2.:1.)  ;
   ASSERT(ok);
   if (_secondOrder)
@@ -345,7 +330,6 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
       if ( !it.More() )
         continue;
       TopAbs_ShapeEnum shapeType = it.Value().ShapeType();
-#if GMSH_MAJOR_VERSION >=4
       std::vector< std::pair< int, int > > dimTags;
       for ( ; it.More(); it.Next())
       {
@@ -374,39 +358,6 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
         _gModel->getGEOInternals()->setCompoundMesh( dim, tags );
         toSynchronize = true;
       }
-#else
-      // compound of edges
-      if (shapeType == TopAbs_EDGE)
-      {
-        MESSAGE("    shapeType == TopAbs_EDGE :");
-        int num = _gModel->getNumEdges()+1;
-        Curve *curve = CreateCurve(num, MSH_SEGM_COMPOUND, 1, NULL, NULL, -1, -1, 0., 1.);
-        for ( ; it.More(); it.Next())
-        {
-          TopoDS_Shape topoShape = it.Value();
-          ASSERT(topoShape.ShapeType() == shapeType);
-          curve->compound.push_back(occgeo->addEdgeToModel(_gModel, (TopoDS_Edge&)topoShape)->tag());
-        }
-        toSynchronize = true;
-        Tree_Add(_gModel->getGEOInternals()->Curves, &curve);
-        //_gModel->importGEOInternals();
-      }
-      // compound of faces
-      else if (shapeType == TopAbs_FACE)
-      {
-        MESSAGE("    shapeType == TopAbs_FACE :");
-        int num = _gModel->getNumFaces()+1;
-        Surface *surface = CreateSurface(num, MSH_SURF_COMPOUND);
-        for ( ; it.More(); it.Next())
-        {
-          TopoDS_Shape topoShape = it.Value();
-          ASSERT(topoShape.ShapeType() == shapeType);
-          surface->compound.push_back(occgeo->addFaceToModel(_gModel, (TopoDS_Face&)topoShape)->tag());
-        }
-        toSynchronize = true;
-        Tree_Add(_gModel->getGEOInternals()->Surfaces, &surface);
-      }
-#endif
       if ( toSynchronize )
         _gModel->getGEOInternals()->synchronize(_gModel);
     }
@@ -419,7 +370,7 @@ void GMSHPlugin_Mesher::CreateGmshCompounds()
  */
 //================================================================================
 
-#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
 void GMSHPlugin_Mesher::SetCompoundMeshVisibility()
 {
 
@@ -525,7 +476,7 @@ void GMSHPlugin_Mesher::FillSMesh()
     // GET topoEdge CORRESPONDING TO gEdge
     TopoDS_Edge topoEdge;
     std::vector< ShapeBounds > topoEdges;
-#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
     if(gEdge->haveParametrization())
 #else
     if ( gEdge->geomType() != GEntity::CompoundCurve )
@@ -617,7 +568,7 @@ void GMSHPlugin_Mesher::FillSMesh()
   {
     GFace *gFace = *it;
 
-#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
     // Gmsh since version 4.3 is now producing extra surface and mesh when
     // compounds are involved. Since in Gmsh meshing procedure needs acess
     // to each of the original topology and the meshed topology. Hence  we
@@ -631,7 +582,7 @@ void GMSHPlugin_Mesher::FillSMesh()
     TopoDS_Face topoFace;
     std::vector< ShapeBounds > topoFaces;
 
-#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
     if(gFace->haveParametrization())
 #else
     if ( gFace->geomType() != GEntity::CompoundSurface )
@@ -668,7 +619,7 @@ void GMSHPlugin_Mesher::FillSMesh()
   {
     GFace *gFace = *it;
 
-#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
     if ( _compounds.size() && gFace->geomType() == GEntity::DiscreteSurface )
       continue;
 
@@ -1046,7 +997,7 @@ void  GMSHPlugin_Mesher::mymsg::operator()(std::string level, std::string msg)
         throw oss.str();
     }
     else
-        printf(oss.str().c_str());
+        printf("%s\n", oss.str().c_str());
   }
 }
 
@@ -1090,10 +1041,7 @@ bool GMSHPlugin_Mesher::Compute()
 
   if (!err)
   {
-#if GMSH_MAJOR_VERSION < 4
-    if (_compounds.size() > 0) _gModel->setCompoundVisibility();
-#endif
-#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
     if (_compounds.size() > 0)
       SetCompoundMeshVisibility();
 #endif

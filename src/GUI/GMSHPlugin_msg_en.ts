@@ -88,8 +88,16 @@
         <translation>Delaunay</translation>
     </message>
     <message>
+        <source>GMSH_FRONTAL3</source>
+        <translation>Frontal</translation>
+    </message>
+    <message>
         <source>GMSH_FRONTAL_DELAUNAY</source>
         <translation>Frontal Delaunay</translation>
+    </message>
+    <message>
+        <source>GMSH_FRONTAL_HEX</source>
+        <translation>Frontal Hex</translation>
     </message>
     <message>
         <source>GMSH_MMG3D</source>
@@ -104,12 +112,24 @@
         <translation>2D recombination algorithm</translation>
     </message>
     <message>
+        <source>GMSH_SIMPLE</source>
+        <translation>Simple</translation>
+    </message>
+    <message>
         <source>GMSH_STANDARD</source>
         <translation>Standard</translation>
     </message>
     <message>
         <source>GMSH_BLOSSOM</source>
         <translation>Blossom</translation>
+    </message>
+    <message>
+        <source>GMSH_SIMPLE_FULL_QUADS</source>
+        <translation>Simple full-quad</translation>
+    </message>
+    <message>
+        <source>GMSH_BLOSSOM_FULL_QUADS</source>
+        <translation>Blossom full-quad</translation>
     </message>
     <message>
         <source>GMSH_RECOMBINE_ALL</source>

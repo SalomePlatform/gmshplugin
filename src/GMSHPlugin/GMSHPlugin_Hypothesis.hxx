@@ -21,6 +21,7 @@
 #ifndef _GMSHPlugin_Hypothesis_HXX_
 #define _GMSHPlugin_Hypothesis_HXX_
 
+#include "GmshVersion.h"
 #include "GMSHPlugin_Defs.hxx"
 
 #include "SMESH_Hypothesis.hxx"
@@ -49,7 +50,7 @@ public:
 
   void Set2DAlgo(Algo2D the2DAlgo);
   Algo2D Get2DAlgo() const { return _algo2d; }
-  
+
   enum Algo3D
   {
    delaunay3,
@@ -58,14 +59,25 @@ public:
    rtree
   };
 
+
   void Set3DAlgo(Algo3D the3DAlgo);
   Algo3D Get3DAlgo() const { return _algo3d; }
 
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+  enum Recomb2DAlgo
+  {
+   simple,
+   blossom,
+   simplefullquads,
+   blossomfullquads
+  };
+#else
   enum Recomb2DAlgo
   {
    standard,
    blossom
   };
+#endif
 
   void SetRecomb2DAlgo(Recomb2DAlgo theRecomb2DAlgo);
   Recomb2DAlgo GetRecomb2DAlgo() const { return _recomb2DAlgo; }

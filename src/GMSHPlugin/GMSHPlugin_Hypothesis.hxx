@@ -56,7 +56,8 @@ public:
    delaunay3,
    frontal3,
    mmg3d,
-   rtree
+   rtree,
+   hxt
   };
 
 

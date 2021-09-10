@@ -24,9 +24,9 @@
 
 #include <stdio.h>
 #include "GmshVersion.h"
-#if GMSH_MAJOR_VERSION >=4 
+#if GMSH_MAJOR_VERSION >=4
 #include "gmsh.h"
-#else 
+#else
 #include "Gmsh.h"
 #endif
 #include "GmshConfig.h"
@@ -34,7 +34,7 @@
 #include "GModelIO_GEO.h"
 #include "Geo.h"
 #if GMSH_MAJOR_VERSION >=4
-#include "GEdge.h" 
+#include "GEdge.h"
 #include "GFace.h"
 #else
 #include "GEdgeCompound.h"
@@ -66,7 +66,7 @@ class GMSHPlugin_Hypothesis;
  */
 //=============================================================================
 
-class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher 
+class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 {
  public:
   // ---------- PUBLIC METHODS ----------
@@ -78,7 +78,7 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   bool Compute();
 
   bool Evaluate(MapShapeNbElems& aResMap);
-  
+
   static float DistBoundingBox(const SBoundingBox3d& bounds, const SPoint3& point);
 
  private:
@@ -97,14 +97,19 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   bool                 _secondOrder, _useIncomplElem;
   bool                 _is2d;
   GModel*              _gModel;
-  
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+  double               _maxThreads;
+#endif
+
   std::set<std::string> _compounds;
-  
+
   void SetGmshOptions();
   void CreateGmshCompounds();
-  void SetCompoundMeshVisibility();
   void FillSMesh();
-
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+  void SetMaxThreadsGmsh();
+  void SetCompoundMeshVisibility();
+#endif
   class mymsg : public GmshMessage
   {
   private:

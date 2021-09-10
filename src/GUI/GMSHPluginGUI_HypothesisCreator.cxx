@@ -170,8 +170,8 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
     aGroupLayout->addWidget( new QLabel( tr( "GMSH_3D_ALGO" ), GroupC1 ), row, 0 );
     my3DAlgo = new QComboBox( GroupC1 );
     QStringList types3DAlgo;
-    types3DAlgo << tr("GMSH_DELAUNAY3") << tr( "GMSH_FRONTAL_DELAUNAY" ) << tr( "GMSH_MMG3D" ) <<
-	           tr( "GMSH_R_TREE" );
+    types3DAlgo << tr( "GMSH_DELAUNAY3" ) << tr( "GMSH_FRONTAL_DELAUNAY" ) << tr( "GMSH_MMG3D" ) <<
+	           tr( "GMSH_R_TREE" ) << tr( "GMSH_HXT" );
     my3DAlgo->addItems( types3DAlgo );
     aGroupLayout->addWidget( my3DAlgo, row, 1 );
     row++;

@@ -112,6 +112,10 @@
         <translation>R-tree</translation>
     </message>
     <message>
+        <source>GMSH_HXT</source>
+        <translation>Delaunay Parallèle (HTX)</translation>
+    </message>
+    <message>
         <source>GMSH_2D_RECOMB_ALGO</source>
         <translation>Algorithme de recombinaison 2D</translation>
     </message>

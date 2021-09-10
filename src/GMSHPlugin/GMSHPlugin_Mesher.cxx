@@ -63,6 +63,10 @@
 #include <Context.h>
 #endif
 
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+#include <omp.h>
+#endif
+
 using namespace std;
 
 namespace
@@ -206,6 +210,24 @@ void GMSHPlugin_Mesher::SetParameters(const GMSHPlugin_Hypothesis* hyp)
   }
 }
 
+
+//================================================================================
+/*!
+ * \brief Set maximum number of threads to be used by Gmsh
+ */
+//================================================================================
+
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+void GMSHPlugin_Mesher::SetMaxThreadsGmsh()
+{
+  MESSAGE("GMSHPlugin_Mesher::SetMaxThreadsGmsh");
+  if (_compounds.size() > 0)
+    _maxThreads = 1;
+  else
+    _maxThreads = omp_get_max_threads();
+}
+#endif
+
 //================================================================================
 /*!
  * \brief Set Gmsh Options
@@ -245,6 +267,7 @@ void GMSHPlugin_Mesher::SetGmshOptions()
   mapAlgo3d[1]=4; // Frontal
   mapAlgo3d[2]=7; // MMG3D
   mapAlgo3d[3]=9; // R-tree
+  mapAlgo3d[4]=10;// HXT
 
   int ok;
   ok = GmshSetOption("Mesh", "Algorithm"                , mapAlgo2d[_algo2d])    ;
@@ -288,6 +311,18 @@ void GMSHPlugin_Mesher::SetGmshOptions()
     ok = GmshSetOption("Mesh", "SecondOrderIncomplete"  ,(_useIncomplElem)?1.:0.);
     ASSERT(ok);
   }
+
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+/*ok = GmshSetOption("Mesh", "MaxNumThreads1D"          , 0. )  ; // Coarse-grain algo threads
+  ASSERT(ok);
+  ok = GmshSetOption("Mesh", "MaxNumThreads2D"          , 0. )  ; // Coarse-grain algo threads
+  ASSERT(ok);
+  ok = GmshSetOption("Mesh", "MaxNumThreads3D"          , 0. )  ; // Fine-grain algo threads HXT
+  ASSERT(ok);
+/**/
+  ok = GmshSetOption("General", "NumThreads"            , _maxThreads )  ; // system default i.e. OMP_NUM_THREADS
+  ASSERT(ok);
+#endif
 }
 
 //================================================================================
@@ -1013,6 +1048,9 @@ bool GMSHPlugin_Mesher::Compute()
 
   int err = 0;
 
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+  SetMaxThreadsGmsh();
+#endif
   GmshInitialize();
   SetGmshOptions();
   _gModel = new GModel();

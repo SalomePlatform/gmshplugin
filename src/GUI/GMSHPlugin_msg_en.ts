@@ -108,6 +108,10 @@
         <translation>R-tree</translation>
     </message>
     <message>
+        <source>GMSH_HXT</source>
+        <translation>Parallel Delaunay (HXT)</translation>
+    </message>
+    <message>
         <source>GMSH_2D_RECOMB_ALGO</source>
         <translation>2D recombination algorithm</translation>
     </message>

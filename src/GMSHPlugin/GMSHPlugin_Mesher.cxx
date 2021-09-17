@@ -319,7 +319,7 @@ void GMSHPlugin_Mesher::SetGmshOptions()
   ASSERT(ok);
   ok = GmshSetOption("Mesh", "MaxNumThreads3D"          , 0. )  ; // Fine-grain algo threads HXT
   ASSERT(ok);
-/**/
+**/
   ok = GmshSetOption("General", "NumThreads"            , _maxThreads )  ; // system default i.e. OMP_NUM_THREADS
   ASSERT(ok);
 #endif

@@ -21,4 +21,8 @@
 
 SET(TEST_NAMES
   basicGroup
+  gmsh_compound_mesh_2d
+  gmsh_compound_mesh_3d
+  gmsh_tetra_algorithms_for_box
+  gmsh_triangulation_algorithms_for_square
 )

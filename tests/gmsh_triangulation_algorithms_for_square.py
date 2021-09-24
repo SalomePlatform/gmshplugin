@@ -7,8 +7,8 @@ This file creates a square using GEOM then meshes the same using Gmsh's differen
 2. mesh Adapt             ----> Gmsh_Parameters.Set2DAlgo( 1 )
 3. Delaunay               ----> Gmsh_Parameters.Set2DAlgo( 2 )
 4. Frontal                ----> Gmsh_Parameters.Set2DAlgo( 3 )
-5. Delaunay For Quads     ----> Gmsh_Parameters.Set2DAlgo( 3 )
-6. Packing Parallelograms ----> Gmsh_Parameters.Set2DAlgo( 3 )
+5. Delaunay For Quads     ----> Gmsh_Parameters.Set2DAlgo( 4 )
+6. Packing Parallelograms ----> Gmsh_Parameters.Set2DAlgo( 5 )
 
 This file is solely for the propose of testing and we do overwrite the meshes.
 '''

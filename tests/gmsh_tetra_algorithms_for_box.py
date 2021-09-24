@@ -3,10 +3,11 @@
 '''
 This file creates a box using GEOM then meshes the same using Gmsh's different algorithms
 
-1. Frontal Delaunay ----> Gmsh_Parameters.Set3DAlgo( 0 )
-2. Frontal Hex      ----> Gmsh_Parameters.Set3DAlgo( 1 )
-3. MMG3D            ----> Gmsh_Parameters.Set3DAlgo( 2 )
-4. R-Tree           ----> Gmsh_Parameters.Set3DAlgo( 3 )
+1. Delaunay               ----> Gmsh_Parameters.Set3DAlgo( 0 )
+2. Frontal Delaunay       ----> Gmsh_Parameters.Set3DAlgo( 1 )
+3. MMG3D                  ----> Gmsh_Parameters.Set3DAlgo( 2 )
+4. R-Tree                 ----> Gmsh_Parameters.Set3DAlgo( 3 )
+5. Parallel Delaunay(HXT) ----> Gmsh_Parameters.Set3DAlgo( 4 )
 
 This file is solely for the propose of testing and we do overwrite the meshes.
 '''
@@ -49,9 +50,9 @@ try:
   Gmsh_Parameters.Set3DAlgo( 0 )
   isDone = Mesh_1.Compute()
   if not isDone:
-    errorMsg+= '\n ERROR: failed to mesh the box using Frontal Delaunay algorithm from Gmsh\n'
+    errorMsg+= '\n ERROR: failed to mesh the box using Delaunay algorithm from Gmsh\n'
   else:
-    okMsg+= '\n PASSED: Successfully meshed the box using Frontal Delaunay algorithm from Gmsh\n'
+    okMsg+= '\n PASSED: Successfully meshed the box using Delaunay algorithm from Gmsh\n'
 except:
       errorMsg+='\n ERROR: Exception raised in Mesh computation'
 
@@ -62,35 +63,49 @@ try:
   Gmsh_Parameters.Set3DAlgo( 1 )
   isDone = Mesh_1.Compute()
   if not isDone:
-    errorMsg+= '\n ERROR: failed to mesh the box using Frontal Hex algorithm from Gmsh\n'
+    errorMsg+= '\n ERROR: failed to mesh the box using Frontal Delaunay algorithm from Gmsh\n'
   else:
-    okMsg+= '\n PASSED: Successfully meshed the box using Frontal Hex algorithm from Gmsh\n'    
+    okMsg+= '\n PASSED: Successfully meshed the box using Frontal Delaunay algorithm from Gmsh\n'
 except:
       errorMsg+='\n ERROR: Exception raised in Mesh computation'
 
 #-------------------------------------
 # Test: MMG3D
-#-------------------------------------      
+#-------------------------------------
 try:
   Gmsh_Parameters.Set3DAlgo( 2 )
   isDone = Mesh_1.Compute()
   if not isDone:
     errorMsg+= '\n ERROR: failed to mesh the box using MMG3D algorithm from Gmsh\n'
   else:
-    okMsg+= '\n PASSED: Successfully meshed the box using MMG3D algorithm from Gmsh\n'    
+    okMsg+= '\n PASSED: Successfully meshed the box using MMG3D algorithm from Gmsh\n'
 except:
       errorMsg+='\n ERROR: Exception raised in Mesh computation'
       
 #-------------------------------------
 # Test: R-Tree Algorithm
-#-------------------------------------           
+#-------------------------------------
 try:
   Gmsh_Parameters.Set3DAlgo( 3 )
   isDone = Mesh_1.Compute()
   if not isDone:
-    errorMsg+= '\n ERROR: failed to mesh the box using  R-Tree algorithm from Gmsh\n'
+    errorMsg+= '\n ERROR: failed to mesh the box using R-Tree algorithm from Gmsh\n'
   else:
-    okMsg+= '\n PASSED: Successfully meshed the box using R-Tree algorithm from Gmsh\n'    
+    okMsg+= '\n PASSED: Successfully meshed the box using R-Tree algorithm from Gmsh\n'
+except:
+      errorMsg+='\n ERROR: Exception raised in Mesh computation'
+
+
+#-------------------------------------
+# Test: R-Tree Algorithm
+#-------------------------------------
+try:
+  Gmsh_Parameters.Set3DAlgo( 4 )
+  isDone = Mesh_1.Compute()
+  if not isDone:
+    errorMsg+= '\n ERROR: failed to mesh the box using Parallel Delaunay HXT algorithm from Gmsh\n'
+  else:
+    okMsg+= '\n PASSED: Successfully meshed the box using Parallel Delaunay HXT algorithm from Gmsh\n'
 except:
       errorMsg+='\n ERROR: Exception raised in Mesh computation'
 
@@ -102,7 +117,7 @@ if okMsg!= '':
   print (okMsg)
       
 if errorMsg!= '':
-  raise RuntimeError (errorMsg + "\n Test is KO.")  
+  raise RuntimeError (errorMsg + "\n Test is KO.")
 
 if salome.sg.hasDesktop():
   salome.sg.updateObjBrowser()

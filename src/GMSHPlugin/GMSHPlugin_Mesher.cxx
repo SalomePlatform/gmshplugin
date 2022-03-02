@@ -60,7 +60,7 @@
 
 #if GMSH_MAJOR_VERSION >=4
 #include <GmshGlobal.h>
-#include <Context.h>
+#include <gmsh/Context.h>
 #endif
 
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8

@@ -1085,6 +1085,7 @@ bool GMSHPlugin_Mesher::Compute()
 #endif
     FillSMesh();
   }
+  GmshSetMessageHandler(nullptr);
   delete _gModel;
   GmshFinalize();
   MESSAGE("GMSHPlugin_Mesher::Compute:End");

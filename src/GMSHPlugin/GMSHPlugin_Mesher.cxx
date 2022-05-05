@@ -21,43 +21,27 @@
 #include "GMSHPlugin_Mesher.hxx"
 #include "GMSHPlugin_Hypothesis_2D.hxx"
 
-#include <SMDS_FaceOfNodes.hxx>
 #include <SMDS_MeshElement.hxx>
 #include <SMDS_MeshNode.hxx>
 #include <SMESHDS_Mesh.hxx>
-#include <SMESH_Block.hxx>
 #include <SMESH_Comment.hxx>
 #include <SMESH_ComputeError.hxx>
-#include <SMESH_File.hxx>
 #include <SMESH_Gen_i.hxx>
 #include <SMESH_Mesh.hxx>
 #include <SMESH_MesherHelper.hxx>
 #include <SMESH_subMesh.hxx>
+#include <StdMeshers_FaceSide.hxx>
 #include <utilities.h>
 
 #include <vector>
 #include <limits>
 
-#include <BRep_Tool.hxx>
-#include <Bnd_B3d.hxx>
-#include <GCPnts_AbscissaPoint.hxx>
-#include <GeomAdaptor_Curve.hxx>
-#include <NCollection_Map.hxx>
-#include <OSD_File.hxx>
-#include <OSD_Path.hxx>
-#include <Standard_ErrorHandler.hxx>
-#include <Standard_ProgramError.hxx>
-#include <TCollection_AsciiString.hxx>
-#include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
-#include <TopTools_DataMapIteratorOfDataMapOfShapeInteger.hxx>
-#include <TopTools_DataMapIteratorOfDataMapOfShapeShape.hxx>
-#include <TopTools_DataMapOfShapeInteger.hxx>
-#include <TopTools_DataMapOfShapeShape.hxx>
-#include <TopTools_ListIteratorOfListOfShape.hxx>
-#include <TopTools_MapOfShape.hxx>
 #include <TopoDS.hxx>
 
+#include <MLine.h>
+#include <MTriangle.h>
+#include <MQuadrangle.h>
 #if GMSH_MAJOR_VERSION >=4
 #include <GmshGlobal.h>
 #include <gmsh/Context.h>
@@ -151,6 +135,13 @@ namespace
     }
     return shape;
   }
+
+  double segmentSize( const UVPtStructVec& nodeParam, size_t i )
+  {
+    double l1 = SMESH_NodeXYZ( nodeParam[i].node ).Distance( nodeParam[i-1].node );
+    double l2 = SMESH_NodeXYZ( nodeParam[i].node ).Distance( nodeParam[i+1].node );
+    return 0.5 * ( l1 + l2 );
+  }
 }
 
 //=============================================================================
@@ -159,10 +150,12 @@ namespace
  */
 //=============================================================================
 
-GMSHPlugin_Mesher::GMSHPlugin_Mesher (SMESH_Mesh* mesh,
-                                      const TopoDS_Shape& aShape)
+GMSHPlugin_Mesher::GMSHPlugin_Mesher (SMESH_Mesh*         mesh,
+                                      const TopoDS_Shape& aShape,
+                                      bool                is2D)
   : _mesh    (mesh),
-    _shape   (aShape)
+    _shape   (aShape),
+    _is2d    (is2D)
 {
   // il faudra peut être mettre un truc par defaut si l'utilisateur ne rentre rien en para
   //defaultParameters();
@@ -187,7 +180,6 @@ void GMSHPlugin_Mesher::SetParameters(const GMSHPlugin_Hypothesis* hyp)
     _maxSize         = hyp->GetMaxSize();
     _secondOrder     = hyp->GetSecondOrder();
     _useIncomplElem  = hyp->GetUseIncomplElem();
-    _is2d            = hyp->GetIs2d();
     _compounds       = hyp->GetCompoundOnEntries();
   }
   else
@@ -205,7 +197,6 @@ void GMSHPlugin_Mesher::SetParameters(const GMSHPlugin_Hypothesis* hyp)
     _maxSize         = 1e22;
     _secondOrder     = false;
     _useIncomplElem  = true;
-    _is2d            = false;
     _compounds.clear();
   }
 }
@@ -443,15 +434,67 @@ void GMSHPlugin_Mesher::SetCompoundMeshVisibility()
 
     for( auto itV = bndVerticies.begin(); itV != bndVerticies.end(); ++itV )
     {
-            if(((*itE)->compound.size()))
-               (*itV)->setVisibility(0);
-            else
-               (*itV)->setVisibility(1);
+      if(((*itE)->compound.size()))
+        (*itV)->setVisibility(0);
+      else
+        (*itV)->setVisibility(1);
     }
   }
 
 }
 #endif
+
+//================================================================================
+/*!
+ * \brief Get a node ID by a GMSH mesh veretx
+ */
+//================================================================================
+
+smIdType GMSHPlugin_Mesher::NodeID( const MVertex* v, bool checkMap )
+{
+  if ( checkMap )
+  {
+    std::map< const MVertex *, const SMDS_MeshNode* >::iterator v2n = _nodeMap.find( v );
+    if ( v2n != _nodeMap.end() )
+      return v2n->second->GetID();
+  }
+  return _nodeNumShift + v->getNum();
+}
+
+//================================================================================
+/*!
+ * \brief Get a node by a GMSH mesh veretx
+ */
+//================================================================================
+
+const SMDS_MeshNode* GMSHPlugin_Mesher::Node( const MVertex* v, bool checkMap )
+{
+  if ( checkMap )
+  {
+    std::map< const MVertex *, const SMDS_MeshNode* >::iterator v2n = _nodeMap.find( v );
+    if ( v2n != _nodeMap.end() )
+      return v2n->second;
+  }
+  return _mesh->GetMeshDS()->FindNode( _nodeNumShift + v->getNum() );
+}
+
+//================================================================================
+/*!
+ * \brief Return a corresponding sub-mesh if a shape is meshed
+ */
+//================================================================================
+
+SMESHDS_SubMesh* GMSHPlugin_Mesher::HasSubMesh( const TopoDS_Shape& s )
+{
+  if ( SMESHDS_SubMesh*  sm = _mesh->GetMeshDS()->MeshElements( s ))
+  {
+    if ( s.ShapeType() == TopAbs_VERTEX )
+      return ( sm->NbNodes() > 0 ) ? sm : nullptr;
+    else
+      return ( sm->NbElements() > 0 ) ? sm : nullptr;
+  }
+  return nullptr;
+}
 
 //================================================================================
 /*!
@@ -477,15 +520,17 @@ void GMSHPlugin_Mesher::FillSMesh()
       sm->SetIsAlwaysComputed(true); // prevent from displaying errors
       continue;
     }
+    if ( HasSubMesh( topoVertex ))
+      continue; // a meshed sub-mesh
 
     // FILL SMESH FOR topoVertex
     //nodes
-    for(unsigned int i = 0; i < gVertex->mesh_vertices.size(); i++)
+    for( size_t i = 0; i < gVertex->mesh_vertices.size(); i++)
     {
       MVertex *v = gVertex->mesh_vertices[i];
       if(v->getIndex() >= 0)
       {
-        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),v->getNum());
+        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(), NodeID(v));
         meshDS->SetNodeOnVertex( node, topoVertex );
       }
     }
@@ -524,6 +569,8 @@ void GMSHPlugin_Mesher::FillSMesh()
         sm->SetIsAlwaysComputed(true); // prevent from displaying errors
         continue;
       }
+      if ( HasSubMesh( topoEdge ))
+        continue; // a meshed sub-mesh
     }
     bool isCompound = getBoundsOfShapes( gEdge, topoEdges );
 
@@ -534,7 +581,7 @@ void GMSHPlugin_Mesher::FillSMesh()
       MVertex *v = gEdge->mesh_vertices[i];
       if ( v->getIndex() >= 0 )
       {
-        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),v->getNum());
+        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),NodeID(v));
 
         if ( isCompound )
           topoEdge = TopoDS::Edge( getShapeAtPoint( v->point(), topoEdges ));
@@ -556,6 +603,9 @@ void GMSHPlugin_Mesher::FillSMesh()
     if ( !isCompound )
       topoEdge = *((TopoDS_Edge*)gEdge->getNativePtr());
 
+    if ( HasSubMesh( topoEdge ))
+      continue; // a meshed sub-mesh
+
     //elements
     std::vector<MVertex*> verts(3);
     for ( size_t i = 0; i < gEdge->getNumMeshElements(); i++ )
@@ -569,7 +619,8 @@ void GMSHPlugin_Mesher::FillSMesh()
       {
         if ( verts[j]->onWhat()->getVisibility() == 0 )
         {
-          SMDS_MeshNode *node = meshDS->AddNodeWithID(verts[i]->x(),verts[j]->y(),verts[j]->z(),verts[j]->getNum());
+          SMDS_MeshNode *node = meshDS->AddNodeWithID(verts[j]->x(),verts[j]->y(),verts[j]->z(),
+                                                      NodeID( verts[j] ));
           meshDS->SetNodeOnEdge( node, topoEdge );
           verts[j]->setEntity(gEdge);
         }
@@ -579,13 +630,13 @@ void GMSHPlugin_Mesher::FillSMesh()
       switch (verts.size())
       {
         case 2:
-          edge = meshDS->AddEdgeWithID(verts[0]->getNum(),
-                                       verts[1]->getNum(),e->getNum());
+          edge = meshDS->AddEdge(Node( verts[0]),
+                                 Node( verts[1]));
           break;
         case 3:
-          edge = meshDS->AddEdgeWithID(verts[0]->getNum(),
-                                       verts[1]->getNum(),
-                                       verts[2]->getNum(),e->getNum());
+          edge = meshDS->AddEdge(Node( verts[0]),
+                                 Node( verts[1]),
+                                 Node( verts[2]));
           break;
         default:
           ASSERT(false);
@@ -608,7 +659,7 @@ void GMSHPlugin_Mesher::FillSMesh()
     // compounds are involved. Since in Gmsh meshing procedure needs acess
     // to each of the original topology and the meshed topology. Hence  we
     // bypass the additional mesh in case of compounds. Note, similar cri-
-    // teria also occus in the following 'for' loop.
+    // teria also occurs in the following 'for' loop.
     if ( _compounds.size() && gFace->geomType() == GEntity::DiscreteSurface )
       continue;
 #endif
@@ -630,6 +681,8 @@ void GMSHPlugin_Mesher::FillSMesh()
         sm->SetIsAlwaysComputed(true); // prevent from displaying errors
         continue;
       }
+      if ( HasSubMesh( topoFace ))
+        continue; // a meshed sub-mesh
     }
     bool isCompound = getBoundsOfShapes( gFace, topoFaces );
 
@@ -640,7 +693,7 @@ void GMSHPlugin_Mesher::FillSMesh()
       MVertex *v = gFace->mesh_vertices[i];
       if ( v->getIndex() >= 0 )
       {
-        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),v->getNum());
+        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),NodeID(v));
 
         if ( isCompound )
           topoFace = TopoDS::Face( getShapeAtPoint( v->point(), topoFaces ));
@@ -673,6 +726,17 @@ void GMSHPlugin_Mesher::FillSMesh()
     else
       topoFace = *((TopoDS_Face*)gFace->getNativePtr());
 
+    if ( HasSubMesh( topoFace ))
+      continue; // a meshed sub-mesh
+
+    // check if there is a meshed sub-mesh on FACE boundary
+    bool hasSubMesh = false;
+    for ( TopExp_Explorer edgeIt( topoFace, TopAbs_EDGE ); edgeIt.More(); edgeIt.Next() )
+    {
+      if (( hasSubMesh = HasSubMesh( edgeIt.Current() )))
+        break;
+    }
+
     //elements
     std::vector<MVertex*> verts;
     for ( size_t i = 0; i < gFace->getNumMeshElements(); i++ )
@@ -687,7 +751,7 @@ void GMSHPlugin_Mesher::FillSMesh()
       {
         if(verts[j]->onWhat()->getVisibility() == 0)
         {
-          SMDS_MeshNode *node = meshDS->AddNodeWithID(verts[j]->x(),verts[j]->y(),verts[j]->z(),verts[j]->getNum());
+          SMDS_MeshNode *node = meshDS->AddNodeWithID(verts[j]->x(),verts[j]->y(),verts[j]->z(),NodeID(verts[j]));
           meshDS->SetNodeOnFace( node, topoFace );
           verts[i]->setEntity(gFace);
         }
@@ -695,44 +759,44 @@ void GMSHPlugin_Mesher::FillSMesh()
       switch (verts.size())
       {
         case 3:
-          face = meshDS->AddFaceWithID(verts[0]->getNum(),
-                                       verts[1]->getNum(),
-                                       verts[2]->getNum(),e->getNum());
+          face = meshDS->AddFace(Node( verts[0], hasSubMesh),
+                                 Node( verts[1], hasSubMesh),
+                                 Node( verts[2], hasSubMesh));
           break;
         case 4:
-          face = meshDS->AddFaceWithID(verts[0]->getNum(),
-                                       verts[1]->getNum(),
-                                       verts[2]->getNum(),
-                                       verts[3]->getNum(),e->getNum());
+          face = meshDS->AddFace(Node( verts[0], hasSubMesh),
+                                 Node( verts[1], hasSubMesh),
+                                 Node( verts[2], hasSubMesh),
+                                 Node( verts[3], hasSubMesh));
           break;
         case 6:
-          face = meshDS->AddFaceWithID(verts[0]->getNum(),
-                                       verts[1]->getNum(),
-                                       verts[2]->getNum(),
-                                       verts[3]->getNum(),
-                                       verts[4]->getNum(),
-                                       verts[5]->getNum(),e->getNum());
+          face = meshDS->AddFace(Node( verts[0], hasSubMesh),
+                                 Node( verts[1], hasSubMesh),
+                                 Node( verts[2], hasSubMesh),
+                                 Node( verts[3], hasSubMesh),
+                                 Node( verts[4], hasSubMesh),
+                                 Node( verts[5], hasSubMesh));
           break;
         case 8:
-          face = meshDS->AddFaceWithID(verts[0]->getNum(),
-                                       verts[1]->getNum(),
-                                       verts[2]->getNum(),
-                                       verts[3]->getNum(),
-                                       verts[4]->getNum(),
-                                       verts[5]->getNum(),
-                                       verts[6]->getNum(),
-                                       verts[7]->getNum(),e->getNum());
+          face = meshDS->AddFace(Node( verts[0], hasSubMesh),
+                                 Node( verts[1], hasSubMesh),
+                                 Node( verts[2], hasSubMesh),
+                                 Node( verts[3], hasSubMesh),
+                                 Node( verts[4], hasSubMesh),
+                                 Node( verts[5], hasSubMesh),
+                                 Node( verts[6], hasSubMesh),
+                                 Node( verts[7], hasSubMesh));
           break;
         case 9:
-          face = meshDS->AddFaceWithID(verts[0]->getNum(),
-                                       verts[1]->getNum(),
-                                       verts[2]->getNum(),
-                                       verts[3]->getNum(),
-                                       verts[4]->getNum(),
-                                       verts[5]->getNum(),
-                                       verts[6]->getNum(),
-                                       verts[7]->getNum(),
-                                       verts[8]->getNum(),e->getNum());
+          face = meshDS->AddFace(Node( verts[0], hasSubMesh),
+                                 Node( verts[1], hasSubMesh),
+                                 Node( verts[2], hasSubMesh),
+                                 Node( verts[3], hasSubMesh),
+                                 Node( verts[4], hasSubMesh),
+                                 Node( verts[5], hasSubMesh),
+                                 Node( verts[6], hasSubMesh),
+                                 Node( verts[7], hasSubMesh),
+                                 Node( verts[8], hasSubMesh));
           break;
         default:
           ASSERT(false);
@@ -756,190 +820,197 @@ void GMSHPlugin_Mesher::FillSMesh()
     // GET topoSolid CORRESPONDING TO gRegion
     TopoDS_Solid topoSolid = *((TopoDS_Solid*)gRegion->getNativePtr());
 
+    // check if there is a meshed sub-mesh on SOLID boundary
+    bool hasSubMesh = false;
+    for ( TopExp_Explorer faceIt( topoSolid, TopAbs_FACE ); faceIt.More(); faceIt.Next() )
+    {
+      if (( hasSubMesh = HasSubMesh( faceIt.Current() )))
+        break;
+    }      
+
     // FILL SMESH FOR topoSolid
 
     //nodes
-    for(unsigned int i = 0; i < gRegion->mesh_vertices.size(); i++)
+    for( size_t i = 0; i < gRegion->mesh_vertices.size(); i++)
     {
       MVertex *v = gRegion->mesh_vertices[i];
       if(v->getIndex() >= 0)
       {
-        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),v->getNum());
+        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),NodeID(v));
         meshDS->SetNodeInVolume( node, topoSolid );
       }
     }
 
     //elements
     std::vector<MVertex*> verts;
-    for(unsigned int i = 0; i < gRegion->getNumMeshElements(); i++)
+    for( size_t i = 0; i < gRegion->getNumMeshElements(); i++)
     {
       MElement *e = gRegion->getMeshElement(i);
       verts.clear();
       e->getVertices(verts);
       SMDS_MeshVolume* volume = 0;
       switch (verts.size()){
-        case 4:
-          volume = meshDS->AddVolumeWithID(verts[0]->getNum(),
-                                           verts[2]->getNum(),
-                                           verts[1]->getNum(),
-                                           verts[3]->getNum(),e->getNum());
-          break;
-        case 5:
-          volume = meshDS->AddVolumeWithID(verts[0]->getNum(),
-                                           verts[3]->getNum(),
-                                           verts[2]->getNum(),
-                                           verts[1]->getNum(),
-                                           verts[4]->getNum(),e->getNum());
-          break;
-        case 6:
-          volume = meshDS->AddVolumeWithID(verts[0]->getNum(),
-                                           verts[2]->getNum(),
-                                           verts[1]->getNum(),
-                                           verts[3]->getNum(),
-                                           verts[5]->getNum(),
-                                           verts[4]->getNum(),e->getNum());
-          break;
-        case 8:
-          volume = meshDS->AddVolumeWithID(verts[0]->getNum(),
-                                           verts[3]->getNum(),
-                                           verts[2]->getNum(),
-                                           verts[1]->getNum(),
-                                           verts[4]->getNum(),
-                                           verts[7]->getNum(),
-                                           verts[6]->getNum(),
-                                           verts[5]->getNum(),e->getNum());
-          break;
-        case 10:
-          volume = meshDS->AddVolumeWithID(verts[0]->getNum(),
-                                           verts[2]->getNum(),
-                                           verts[1]->getNum(),
-                                           verts[3]->getNum(),
-                                           verts[6]->getNum(),
-                                           verts[5]->getNum(),
-                                           verts[4]->getNum(),
-                                           verts[7]->getNum(),
-                                           verts[8]->getNum(),
-                                           verts[9]->getNum(),e->getNum());
-          break;
-        case 13:
-          volume = meshDS->AddVolumeWithID(verts[0]->getNum(),
-                                           verts[3]->getNum(),
-                                           verts[2]->getNum(),
-                                           verts[1]->getNum(),
-                                           verts[4]->getNum(),
-                                           verts[6]->getNum(),
-                                           verts[10]->getNum(),
-                                           verts[8]->getNum(),
-                                           verts[5]->getNum(),
-                                           verts[7]->getNum(),
-                                           verts[12]->getNum(),
-                                           verts[11]->getNum(),
-                                           verts[9]->getNum(),e->getNum());
-          break;
-        case 14: // same as case 13, because no pyra14 in smesh
-          volume = meshDS->AddVolumeWithID(verts[0]->getNum(),
-                                           verts[3]->getNum(),
-                                           verts[2]->getNum(),
-                                           verts[1]->getNum(),
-                                           verts[4]->getNum(),
-                                           verts[6]->getNum(),
-                                           verts[10]->getNum(),
-                                           verts[8]->getNum(),
-                                           verts[5]->getNum(),
-                                           verts[7]->getNum(),
-                                           verts[12]->getNum(),
-                                           verts[11]->getNum(),
-                                           verts[9]->getNum(),e->getNum());
-          break;
-        case 15:
-          volume = meshDS->AddVolumeWithID(verts[0]->getNum(),
-                                           verts[2]->getNum(),
-                                           verts[1]->getNum(),
-                                           verts[3]->getNum(),
-                                           verts[5]->getNum(),
-                                           verts[4]->getNum(),
-                                           verts[7]->getNum(),
-                                           verts[9]->getNum(),
-                                           verts[6]->getNum(),
-                                           verts[13]->getNum(),
-                                           verts[14]->getNum(),
-                                           verts[12]->getNum(),
-                                           verts[8]->getNum(),
-                                           verts[11]->getNum(),
-                                           verts[10]->getNum(),e->getNum());
-          break;
-        case 18: // same as case 15, because no penta18 in smesh
-          volume = meshDS->AddVolumeWithID(verts[0]->getNum(),
-                                           verts[2]->getNum(),
-                                           verts[1]->getNum(),
-                                           verts[3]->getNum(),
-                                           verts[5]->getNum(),
-                                           verts[4]->getNum(),
-                                           verts[7]->getNum(),
-                                           verts[9]->getNum(),
-                                           verts[6]->getNum(),
-                                           verts[13]->getNum(),
-                                           verts[14]->getNum(),
-                                           verts[12]->getNum(),
-                                           verts[8]->getNum(),
-                                           verts[11]->getNum(),
-                                           verts[10]->getNum(),e->getNum());
-          break;
-        case 20:
-          volume = meshDS->AddVolumeWithID(verts[0]->getNum(),
-                                           verts[3]->getNum(),
-                                           verts[2]->getNum(),
-                                           verts[1]->getNum(),
-                                           verts[4]->getNum(),
-                                           verts[7]->getNum(),
-                                           verts[6]->getNum(),
-                                           verts[5]->getNum(),
-                                           verts[9]->getNum(),
-                                           verts[13]->getNum(),
-                                           verts[11]->getNum(),
-                                           verts[8]->getNum(),
-                                           verts[17]->getNum(),
-                                           verts[19]->getNum(),
-                                           verts[18]->getNum(),
-                                           verts[16]->getNum(),
-                                           verts[10]->getNum(),
-                                           verts[15]->getNum(),
-                                           verts[14]->getNum(),
-                                           verts[12]->getNum(),e->getNum());
-          break;
-        case 27:
-          volume = meshDS->AddVolumeWithID(verts[0]->getNum(),
-                                           verts[3]->getNum(),
-                                           verts[2]->getNum(),
-                                           verts[1]->getNum(),
-                                           verts[4]->getNum(),
-                                           verts[7]->getNum(),
-                                           verts[6]->getNum(),
-                                           verts[5]->getNum(),
-                                           verts[9]->getNum(),
-                                           verts[13]->getNum(),
-                                           verts[11]->getNum(),
-                                           verts[8]->getNum(),
-                                           verts[17]->getNum(),
-                                           verts[19]->getNum(),
-                                           verts[18]->getNum(),
-                                           verts[16]->getNum(),
-                                           verts[10]->getNum(),
-                                           verts[15]->getNum(),
-                                           verts[14]->getNum(),
-                                           verts[12]->getNum(),
-                                           verts[20]->getNum(),
-                                           verts[22]->getNum(),
-                                           verts[24]->getNum(),
-                                           verts[23]->getNum(),
-                                           verts[21]->getNum(),
-                                           verts[25]->getNum(),
-                                           verts[26]->getNum(),
-                                           e->getNum());
-          break;
-        default:
-          ASSERT(false);
-          continue;
+      case 4:
+        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
+                                   Node( verts[2], hasSubMesh ),
+                                   Node( verts[1], hasSubMesh ),
+                                   Node( verts[3], hasSubMesh));
+        break;
+      case 5:
+        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
+                                   Node( verts[3], hasSubMesh ),
+                                   Node( verts[2], hasSubMesh ),
+                                   Node( verts[1], hasSubMesh ),
+                                   Node( verts[4], hasSubMesh));
+        break;
+      case 6:
+        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
+                                   Node( verts[2], hasSubMesh ),
+                                   Node( verts[1], hasSubMesh ),
+                                   Node( verts[3], hasSubMesh ),
+                                   Node( verts[5], hasSubMesh ),
+                                   Node( verts[4], hasSubMesh));
+        break;
+      case 8:
+        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
+                                   Node( verts[3], hasSubMesh ),
+                                   Node( verts[2], hasSubMesh ),
+                                   Node( verts[1], hasSubMesh ),
+                                   Node( verts[4], hasSubMesh ),
+                                   Node( verts[7], hasSubMesh ),
+                                   Node( verts[6], hasSubMesh ),
+                                   Node( verts[5], hasSubMesh));
+        break;
+      case 10:
+        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
+                                   Node( verts[2], hasSubMesh ),
+                                   Node( verts[1], hasSubMesh ),
+                                   Node( verts[3], hasSubMesh ),
+                                   Node( verts[6], hasSubMesh ),
+                                   Node( verts[5], hasSubMesh ),
+                                   Node( verts[4], hasSubMesh ),
+                                   Node( verts[7], hasSubMesh ),
+                                   Node( verts[8], hasSubMesh ),
+                                   Node( verts[9], hasSubMesh));
+        break;
+      case 13:
+        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
+                                   Node( verts[3], hasSubMesh ),
+                                   Node( verts[2], hasSubMesh ),
+                                   Node( verts[1], hasSubMesh ),
+                                   Node( verts[4], hasSubMesh ),
+                                   Node( verts[6], hasSubMesh ),
+                                   Node( verts[10],hasSubMesh ),
+                                   Node( verts[8], hasSubMesh ),
+                                   Node( verts[5], hasSubMesh ),
+                                   Node( verts[7], hasSubMesh ),
+                                   Node( verts[12],hasSubMesh ),
+                                   Node( verts[11],hasSubMesh ),
+                                   Node( verts[9], hasSubMesh));
+        break;
+      case 14: // same as case 13, because no pyra14 in smesh
+        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
+                                   Node( verts[3], hasSubMesh ),
+                                   Node( verts[2], hasSubMesh ),
+                                   Node( verts[1], hasSubMesh ),
+                                   Node( verts[4], hasSubMesh ),
+                                   Node( verts[6], hasSubMesh ),
+                                   Node( verts[10],hasSubMesh ),
+                                   Node( verts[8], hasSubMesh ),
+                                   Node( verts[5], hasSubMesh ),
+                                   Node( verts[7], hasSubMesh ),
+                                   Node( verts[12],hasSubMesh ),
+                                   Node( verts[11],hasSubMesh ),
+                                   Node( verts[9], hasSubMesh));
+        break;
+      case 15:
+        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
+                                   Node( verts[2], hasSubMesh ),
+                                   Node( verts[1], hasSubMesh ),
+                                   Node( verts[3], hasSubMesh ),
+                                   Node( verts[5], hasSubMesh ),
+                                   Node( verts[4], hasSubMesh ),
+                                   Node( verts[7], hasSubMesh ),
+                                   Node( verts[9], hasSubMesh ),
+                                   Node( verts[6], hasSubMesh ),
+                                   Node( verts[13],hasSubMesh ),
+                                   Node( verts[14],hasSubMesh ),
+                                   Node( verts[12],hasSubMesh ),
+                                   Node( verts[8], hasSubMesh ),
+                                   Node( verts[11],hasSubMesh ),
+                                   Node( verts[10],hasSubMesh));
+        break;
+      case 18: // same as case 15, because no penta18 in smesh
+        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
+                                   Node( verts[2], hasSubMesh ),
+                                   Node( verts[1], hasSubMesh ),
+                                   Node( verts[3], hasSubMesh ),
+                                   Node( verts[5], hasSubMesh ),
+                                   Node( verts[4], hasSubMesh ),
+                                   Node( verts[7], hasSubMesh ),
+                                   Node( verts[9], hasSubMesh ),
+                                   Node( verts[6], hasSubMesh ),
+                                   Node( verts[13],hasSubMesh ),
+                                   Node( verts[14],hasSubMesh ),
+                                   Node( verts[12],hasSubMesh ),
+                                   Node( verts[8], hasSubMesh ),
+                                   Node( verts[11],hasSubMesh ),
+                                   Node( verts[10],hasSubMesh));
+        break;
+      case 20:
+        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
+                                   Node( verts[3], hasSubMesh ),
+                                   Node( verts[2], hasSubMesh ),
+                                   Node( verts[1], hasSubMesh ),
+                                   Node( verts[4], hasSubMesh ),
+                                   Node( verts[7], hasSubMesh ),
+                                   Node( verts[6], hasSubMesh ),
+                                   Node( verts[5], hasSubMesh ),
+                                   Node( verts[9], hasSubMesh ),
+                                   Node( verts[13],hasSubMesh ),
+                                   Node( verts[11],hasSubMesh ),
+                                   Node( verts[8] ,hasSubMesh ),
+                                   Node( verts[17],hasSubMesh ),
+                                   Node( verts[19],hasSubMesh ),
+                                   Node( verts[18],hasSubMesh ),
+                                   Node( verts[16],hasSubMesh ),
+                                   Node( verts[10],hasSubMesh ),
+                                   Node( verts[15],hasSubMesh ),
+                                   Node( verts[14],hasSubMesh ),
+                                   Node( verts[12],hasSubMesh));
+        break;
+      case 27:
+        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
+                                   Node( verts[3], hasSubMesh ),
+                                   Node( verts[2], hasSubMesh ),
+                                   Node( verts[1], hasSubMesh ),
+                                   Node( verts[4], hasSubMesh ),
+                                   Node( verts[7], hasSubMesh ),
+                                   Node( verts[6], hasSubMesh ),
+                                   Node( verts[5], hasSubMesh ),
+                                   Node( verts[9], hasSubMesh ),
+                                   Node( verts[13],hasSubMesh ),
+                                   Node( verts[11],hasSubMesh ),
+                                   Node( verts[8] ,hasSubMesh ),
+                                   Node( verts[17],hasSubMesh ),
+                                   Node( verts[19],hasSubMesh ),
+                                   Node( verts[18],hasSubMesh ),
+                                   Node( verts[16],hasSubMesh ),
+                                   Node( verts[10],hasSubMesh ),
+                                   Node( verts[15],hasSubMesh ),
+                                   Node( verts[14],hasSubMesh ),
+                                   Node( verts[12],hasSubMesh ),
+                                   Node( verts[20],hasSubMesh ),
+                                   Node( verts[22],hasSubMesh ),
+                                   Node( verts[24],hasSubMesh ),
+                                   Node( verts[23],hasSubMesh ),
+                                   Node( verts[21],hasSubMesh ),
+                                   Node( verts[25],hasSubMesh ),
+                                   Node( verts[26],hasSubMesh ));
+        break;
+      default:
+        ASSERT(false);
+        continue;
       }
       meshDS->SetMeshElementOnShape(volume, topoSolid);
     }
@@ -1058,10 +1129,32 @@ bool GMSHPlugin_Mesher::Compute()
   GmshSetMessageHandler(&msg);
   _gModel->importOCCShape((void*)&_shape);
   if (_compounds.size() > 0) CreateGmshCompounds();
-  MESSAGE("GModel::Mesh");
   try
   {
-    _gModel->mesh((_is2d)?2:3);
+    //Msg::SetVerbosity(100);
+    //CTX::instance()->mesh.maxNumThreads1D=1;
+
+    HideComputedEntities( _gModel );
+
+    _gModel->mesh( /*dim=*/ 1 );
+
+    Set1DSubMeshes( _gModel );
+
+    //_gModel->writeUNV("/tmp/1D.unv", 1,0,0);
+    //CTX::instance()->mesh.maxNumThreads2D=1;
+
+    _gModel->mesh( /*dim=*/ 2 );
+
+    if ( !_is2d )
+    {
+      Set2DSubMeshes( _gModel );
+
+      //CTX::instance()->mesh.maxNumThreads3D=1;
+
+      _gModel->mesh( /*dim=*/ 3 );
+    }
+    RestoreVisibility( _gModel );
+
 #ifdef WITH_SMESH_CANCEL_COMPUTE
 
 #endif
@@ -1069,11 +1162,13 @@ bool GMSHPlugin_Mesher::Compute()
   catch (std::string& str)
   {
     err = 1;
+    std::cerr << "GMSH: exception caught: " << str << std::endl;
     MESSAGE(str);
   }
   catch (...)
   {
     err = 1;
+    std::cerr << "GMSH: Unknown exception caught: " << std::endl;
     MESSAGE("Unrecoverable error during Generation of Gmsh Mesh");
   }
 
@@ -1091,3 +1186,394 @@ bool GMSHPlugin_Mesher::Compute()
   MESSAGE("GMSHPlugin_Mesher::Compute:End");
   return !err;
 }
+
+//================================================================================
+/*!
+ * \brief Set 1D sub-meshes to GModel. GMSH 1D mesh is made by now.
+ *  \param [inout] _gModel - GMSH model
+ */
+//================================================================================
+
+void GMSHPlugin_Mesher::Set1DSubMeshes( GModel* gModel )
+{
+  SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
+  if ( meshDS->MaxNodeID() > meshDS->NbNodes() ) // holes in node numeration => compact
+  {
+    meshDS->setMyModified();
+    meshDS->Modified();
+    meshDS->CompactMesh();
+  }
+  _nodeNumShift = meshDS->NbNodes();
+
+
+  for(GModel::eiter it = gModel->firstEdge(); it != gModel->lastEdge(); ++it)
+  {
+    GEdge *gEdge = *it;
+
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+    if ( !gEdge->haveParametrization())
+#else
+    if ( gEdge->geomType() == GEntity::CompoundCurve )
+#endif
+      continue;
+    
+    TopoDS_Edge topoEdge = *((TopoDS_Edge*)gEdge->getNativePtr());
+    if ( !HasSubMesh( topoEdge ))
+      continue; // empty sub-mesh
+
+    gEdge->deleteMesh();
+
+    // get node parameters on topoEdge
+    StdMeshers_FaceSide side( TopoDS_Face(), topoEdge, _mesh, /*fwd=*/true, /*skpMedium=*/true);
+    const UVPtStructVec& nodeParam = side.GetUVPtStruct();
+    if ( nodeParam.empty() )
+      throw std::string("Pb with StdMeshers_FaceSide::GetUVPtStruct()");
+
+    // get GMSH mesh vertices on VERTEX'es
+    std::vector<MVertex *> mVertices( nodeParam.size(), nullptr );
+    GVertex * gV0 = gEdge->getBeginVertex(), *gV1 = gEdge->getEndVertex();
+    mVertices[0]     = gV0->mesh_vertices[ 0 ];
+    mVertices.back() = gV1->mesh_vertices[ 0 ];
+    TopoDS_Vertex v01 = *((TopoDS_Vertex*) gV0->getNativePtr());
+    TopoDS_Shape  v02 = SMESH_MesherHelper::GetSubShapeByNode( nodeParam[0].node, meshDS );
+    bool      reverse = !v01.IsSame( v02 );
+    if ( mVertices[0] == mVertices.back() )
+      reverse = ( nodeParam[0].param > nodeParam.back().param );
+    const SMDS_MeshNode* n0 = reverse ? nodeParam.back().node : nodeParam[0].node;
+    const SMDS_MeshNode* n1 = reverse ? nodeParam[0].node : nodeParam.back().node;
+    _nodeMap.insert({ mVertices[ 0 ],   n0 });
+    _nodeMap.insert({ mVertices.back(), n1 });
+
+    // create GMSH mesh vertices on gEdge
+    for ( size_t i = 1; i < nodeParam.size() - 1; ++i )
+    {
+      size_t iN = reverse ? ( nodeParam.size() - 1 - i ) : i;
+      SMESH_NodeXYZ xyz = nodeParam[ iN ].node;
+      double lc = segmentSize( nodeParam, iN );
+      // SVector3 der = gEdge->firstDer(nodeParam[ iN ].param);
+      // double lc = norm(der) / segmentSize( nodeParam, i );
+
+      mVertices[ i ] = new MEdgeVertex( xyz.X(), xyz.Y(), xyz.Z(),
+                                        gEdge, nodeParam[ iN ].param, 0, lc);
+      gEdge->mesh_vertices.push_back( mVertices[ i ]);
+      _nodeMap.insert({ mVertices[ i ], nodeParam[ iN ].node });
+    }
+    // create GMSH mesh edges
+    for ( size_t i = 1; i < mVertices.size(); ++i )
+    {
+      gEdge->lines.push_back( new MLine( mVertices[ i - 1 ],
+                                         mVertices[ i ]));
+    }
+    /*{
+      cout << endl << "EDGE " << gEdge->tag() <<
+        ( topoEdge.Orientation() == TopAbs_FORWARD ? " F" : " R") << endl;
+      MVertex* mv = gV0->mesh_vertices[ 0 ];
+      cout << "V0: " << mv->x() << ", " << mv->y() << ", " << mv->z() << ", "<<endl;
+      for ( size_t i = 0; i < gEdge->mesh_vertices.size(); ++i )
+      {
+        MEdgeVertex* mv = (MEdgeVertex*) gEdge->mesh_vertices[i];
+        cout << i << ": " << mv->x() << ", " << mv->y() << ", " << mv->z() << ", ";
+        double t;
+        mv->getParameter(0, t );
+        cout << ":\t t = "<< t << " lc = " << mv->getLc() << endl;
+      }
+      mv = gV1->mesh_vertices[ 0 ];
+      cout << "V1: " << mv->x() << ", " << mv->y() << ", " << mv->z() << ", "<<endl;
+      }*/
+  }
+  return;
+}
+
+//================================================================================
+/*!
+ * \brief Set 2D sub-meshes to GModel. GMSH 2D mesh is made by now.
+ *  \param [inout] _gModel - GMSH model
+ */
+//================================================================================
+
+void GMSHPlugin_Mesher::Set2DSubMeshes( GModel* gModel )
+{
+  if ( _nodeMap.empty() )
+    return; // no sub-meshes
+
+  SMESH_MesherHelper helper( *_mesh );
+
+  std::map< const SMDS_MeshNode* , const MVertex * > nodes2mvertMap;
+  for ( auto & v2n : _nodeMap )
+    nodes2mvertMap.insert({ v2n.second, v2n.first });
+
+  std::vector<MVertex *> mVertices;
+
+  for(GModel::fiter it = gModel->firstFace(); it != gModel->lastFace(); ++it)
+  {
+    GFace *gFace = *it;
+
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+    if ( !gFace->haveParametrization())
+#else
+      if ( gFace->geomType() == GEntity::CompoundSurface )
+#endif
+        continue;
+
+    TopoDS_Face topoFace = *((TopoDS_Face*)gFace->getNativePtr());
+    SMESHDS_SubMesh*  sm = HasSubMesh( topoFace );
+    if ( !sm )
+      continue;
+    //_gModel->writeUNV("/tmp/befDEl.unv", 1,0,0);
+
+    gFace->deleteMesh();
+
+    bool reverse = false;
+    if ( gFace->getRegion(0) )
+    {
+      //GRegion * gRegion = gFace->getRegion(0);
+      TopoDS_Shape topoSolid = *((TopoDS_Shape*)gFace->getNativePtr());
+      TopAbs_Orientation faceOriInSolid = helper.GetSubShapeOri( topoSolid, topoFace );
+      if ( faceOriInSolid >= 0 )
+        reverse =
+          helper.IsReversedSubMesh( TopoDS::Face( topoFace.Oriented( faceOriInSolid )));
+    }
+
+    for ( SMDS_ElemIteratorPtr fIt = sm->GetElements(); fIt->more(); )
+    {
+      const SMDS_MeshElement* f = fIt->next();
+
+      int nbN = f->NbCornerNodes();
+      if ( nbN > 4 )
+        throw std::string("Polygon sub-meshes not supported");
+
+      mVertices.resize( nbN );
+      for ( int i = 0; i < nbN; ++i )
+      {
+        const SMDS_MeshNode* n = f->GetNode( i );
+        MVertex *           mv = nullptr;
+        auto n2v = nodes2mvertMap.find( n );
+        if ( n2v != nodes2mvertMap.end() )
+        {
+          mv = const_cast< MVertex*>( n2v->second );
+        }
+        else
+        {
+          if ( n->GetPosition()->GetDim() < 2 )
+            throw std::string("Wrong mapping of edge nodes to GMSH nodes");
+          SMESH_NodeXYZ xyz = n;
+          bool ok = true;
+          gp_XY uv = helper.GetNodeUV( topoFace, n, nullptr, &ok );
+          mv = new MFaceVertex( xyz.X(), xyz.Y(), xyz.Z(), gFace, uv.X(), uv.Y() );
+          gFace->mesh_vertices.push_back( mv );
+          nodes2mvertMap.insert({ n, mv });
+          _nodeMap.insert      ({ mv, n });
+        }
+        mVertices[ i ] = mv;
+      }
+      // create GMSH mesh faces
+      switch ( nbN ) {
+      case 3:
+        if ( reverse )
+          gFace->triangles.push_back (new MTriangle(mVertices[0], mVertices[2], mVertices[1]));
+        else
+          gFace->triangles.push_back (new MTriangle(mVertices[0], mVertices[1], mVertices[2]));
+        break;
+      case 4:
+        if ( reverse )
+          gFace->quadrangles.push_back (new MQuadrangle(mVertices[0], mVertices[3],
+                                                        mVertices[2], mVertices[1]));
+        else
+          gFace->quadrangles.push_back (new MQuadrangle(mVertices[0], mVertices[1],
+                                                        mVertices[2], mVertices[3]));
+        break;
+      default:;
+      }
+    }
+  } // loop on GMSH faces
+
+  return;
+}
+
+//================================================================================
+/*!
+ * \brief Set visibility 0 to already computed geom entities
+ *        to prevent their meshing
+ */
+//================================================================================
+
+void GMSHPlugin_Mesher::HideComputedEntities( GModel* gModel )
+{
+  CTX::instance()->mesh.meshOnlyVisible = true;
+
+  for(GModel::eiter it = gModel->firstEdge(); it != gModel->lastEdge(); ++it)
+  {
+    GEdge *gEdge = *it;
+
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+    if ( !gEdge->haveParametrization())
+#else
+      if ( gEdge->geomType() == GEntity::CompoundCurve )
+#endif
+        continue;
+
+    TopoDS_Edge topoEdge = *((TopoDS_Edge*)gEdge->getNativePtr());
+    if ( HasSubMesh( topoEdge ))
+      gEdge->setVisibility(0);
+  }
+
+
+  for(GModel::fiter it = gModel->firstFace(); it != gModel->lastFace(); ++it)
+  {
+    GFace *gFace = *it;
+
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+    if ( !gFace->haveParametrization())
+#else
+      if ( gFace->geomType() == GEntity::CompoundSurface )
+#endif
+        continue;
+
+    TopoDS_Face topoFace = *((TopoDS_Face*)gFace->getNativePtr());
+    if ( HasSubMesh( topoFace ))
+      gFace->setVisibility(0);
+  }
+}
+
+//================================================================================
+/*!
+ * \brief Restore visibility of all geom entities
+ */
+//================================================================================
+
+void GMSHPlugin_Mesher::RestoreVisibility( GModel* gModel )
+{
+  for(GModel::eiter it = gModel->firstEdge(); it != gModel->lastEdge(); ++it)
+  {
+    GEdge *gEdge = *it;
+    gEdge->setVisibility(1);
+  }
+  for(GModel::fiter it = gModel->firstFace(); it != gModel->lastFace(); ++it)
+  {
+    GFace *gFace = *it;
+    gFace->setVisibility(1);
+  }
+}
+
+/*
+  void GMSHPlugin_Mesher::toPython( GModel* )
+  {
+  const char*  pyFile = "/tmp/gMesh.py";
+  ofstream outfile( pyFile, ios::out );
+  if ( !outfile ) return;
+
+  outfile << "import salome, SMESH" << std::endl
+          << "from salome.smesh import smeshBuilder" << std::endl
+          << "smesh = smeshBuilder.New()" << std::endl
+          << "mesh = smesh.Mesh()" << std::endl << std::endl;
+
+  outfile << "## VERTICES" << endl;
+  for ( GModel::viter it = _gModel->firstVertex(); it != _gModel->lastVertex(); ++it)
+  {
+    GVertex *gVertex = *it;
+
+    for(unsigned int i = 0; i < gVertex->mesh_vertices.size(); i++)
+    {
+      MVertex *v = gVertex->mesh_vertices[i];
+      if ( v->getIndex() >= 0)
+      {
+        outfile << "n" << v->getNum() << " = mesh.AddNode("
+                << v->x() << ", " << v->y() << ", " << v->z()<< ")"
+                << " ## tag = " << gVertex->tag() << endl;
+      }
+    }
+  }
+
+  for(GModel::eiter it = _gModel->firstEdge(); it != _gModel->lastEdge(); ++it)
+  {
+    GEdge *gEdge = *it;
+    outfile << "## GEdge " << gEdge->tag() << endl;
+
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+    if(gEdge->haveParametrization())
+#else
+      if ( gEdge->geomType() != GEntity::CompoundCurve )
+#endif
+        for ( size_t i = 0; i < gEdge->mesh_vertices.size(); i++ )
+        {
+          MVertex *v = gEdge->mesh_vertices[i];
+          if ( v->getIndex() >= 0 )
+          {
+            outfile << "n" << v->getNum() << " = mesh.AddNode("
+                    << v->x() << ", " << v->y() << ", " << v->z()<< ")"
+                    << " ## tag = " << gEdge->tag() << endl;
+          }
+        }
+  }
+
+  for ( GModel::fiter it = _gModel->firstFace(); it != _gModel->lastFace(); ++it)
+  {
+    GFace *gFace = *it;
+    if ( _compounds.size() && gFace->geomType() == GEntity::DiscreteSurface )
+      continue;
+    outfile << "## GFace " << gFace->tag() << endl;
+
+    for ( size_t i = 0; i < gFace->mesh_vertices.size(); i++ )
+    {
+      MVertex *v = gFace->mesh_vertices[i];
+      if ( v->getIndex() >= 0 )
+      {
+        outfile << "n" << v->getNum() << " = mesh.AddNode("
+                << v->x() << ", " << v->y() << ", " << v->z()<< ")"
+                << " ## tag = " << gFace->tag() << endl;
+      }
+    }
+  }
+
+  std::vector<MVertex*> verts(3);
+  for(GModel::eiter it = _gModel->firstEdge(); it != _gModel->lastEdge(); ++it)
+  {
+    GEdge *gEdge = *it;
+    outfile << "## GEdge " << gEdge->tag() << endl;
+
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+    if(gEdge->haveParametrization())
+#else
+      if ( gEdge->geomType() != GEntity::CompoundCurve )
+#endif
+    for ( size_t i = 0; i < gEdge->getNumMeshElements(); i++ )
+    {
+      MElement *e = gEdge->getMeshElement(i);
+      verts.clear();
+      e->getVertices(verts);
+
+      outfile << "e" << e->getNum() << " = mesh.AddEdge(["
+              << "n" << verts[0]->getNum() << ","
+              << "n" << verts[1]->getNum();
+      if ( verts.size() == 3 )
+        outfile << "n" << verts[2]->getNum();
+      outfile << "])"<< endl;
+    }
+  }
+
+  for ( GModel::fiter it = _gModel->firstFace(); it != _gModel->lastFace(); ++it)
+  {
+    GFace *gFace = *it;
+    if ( _compounds.size() && gFace->geomType() == GEntity::DiscreteSurface )
+      continue;
+    outfile << "## GFace " << gFace->tag() << endl;
+
+    for ( size_t i = 0; i < gFace->getNumMeshElements(); i++ )
+    {
+      MElement *e = gFace->getMeshElement(i);
+      verts.clear();
+      e->getVertices(verts);
+
+      outfile << "f" << e->getNum() << " = mesh.AddFace([";
+      for ( size_t j = 0; j < verts.size(); j++)
+      {
+        outfile << "n" << verts[j]->getNum();
+        if ( j < verts.size()-1 )
+          outfile << ", ";
+      }
+      outfile << "])" << endl;
+    }
+  }
+  std::cout << "Write " << pyFile << std::endl;
+}
+*/

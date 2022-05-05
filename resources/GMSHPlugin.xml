@@ -26,7 +26,7 @@
                icon-id="gmsh.png"
                hypos="GMSH_Parameters"
                dim="3"
-               support-submeshes="false">
+               support-submeshes="true">
       <python-wrap>
         <algo>GMSH=Tetrahedron(algo=smeshBuilder.GMSH)</algo>
         <hypo>GMSH_Parameters=Parameters()</hypo>
@@ -39,7 +39,7 @@
                hypos="GMSH_Parameters_2D"
                output="TRIA,QUAD"
                dim="2"
-               support-submeshes="false">
+               support-submeshes="true">
       <python-wrap>
         <algo>GMSH_2D=Triangle(algo=smeshBuilder.GMSH_2D)</algo>
         <hypo>GMSH_Parameters_2D=Parameters()</hypo>

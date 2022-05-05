@@ -43,12 +43,9 @@
 #include "MElement.h"
 
 #include "GMSHPlugin_Defs.hxx"
-#include "StdMeshers_FaceSide.hxx"
-#include "SMDS_MeshElement.hxx"
 #include "SMESH_Algo.hxx"
 
 #include <map>
-#include <vector>
 #include <set>
 
 class SMESH_Mesh;
@@ -71,7 +68,7 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
  public:
   // ---------- PUBLIC METHODS ----------
 
-  GMSHPlugin_Mesher (SMESH_Mesh* mesh, const TopoDS_Shape& aShape);
+  GMSHPlugin_Mesher (SMESH_Mesh* mesh, const TopoDS_Shape& aShape, bool is2D);
 
   void SetParameters(const GMSHPlugin_Hypothesis*          hyp);
 
@@ -103,9 +100,21 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 
   std::set<std::string> _compounds;
 
+  int                                               _nodeNumShift;
+  std::map< const MVertex *, const SMDS_MeshNode* > _nodeMap;
+
+  smIdType NodeID( const MVertex* v, bool checkMap = false );
+  const SMDS_MeshNode* Node( const MVertex* v, bool checkMap = false );
+  SMESHDS_SubMesh* HasSubMesh( const TopoDS_Shape& s );
+
   void SetGmshOptions();
   void CreateGmshCompounds();
   void FillSMesh();
+  void HideComputedEntities( GModel* gModel );
+  void RestoreVisibility( GModel* gModel );
+  void Set1DSubMeshes( GModel* );
+  void Set2DSubMeshes( GModel* );
+  void toPython( GModel* );
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
   void SetMaxThreadsGmsh();
   void SetCompoundMeshVisibility();

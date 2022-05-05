@@ -55,6 +55,7 @@ SET(_link_LIBRARIES
   ${SMESH_SMDS}
   ${SMESH_SMESHDS}
   ${SMESH_SMESHimpl}
+  ${SMESH_StdMeshers}
   ${SMESH_SMESHEngine}
   ${SMESH_MeshDriverGMF}
   SalomeIDLGMSHPLUGIN

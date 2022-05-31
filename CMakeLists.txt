@@ -1,5 +1,5 @@
 # Copyright (C) 2012-2015  ALNEOS
-# Copyright (C) 2016-2021  EDF R&D
+# Copyright (C) 2016-2022  EDF R&D
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -39,7 +39,7 @@ ENDIF()
 
 # Versioning
 # ===========
-SALOME_SETUP_VERSION(9.8.0 DEVELOPMENT)
+SALOME_SETUP_VERSION(9.9.0 DEVELOPMENT)
 MESSAGE(STATUS "Building ${PROJECT_NAME_UC} ${${PROJECT_NAME_UC}_VERSION} from \"${${PROJECT_NAME_UC}_GIT_SHA1}\"")
 
 # Find KERNEL

@@ -110,7 +110,7 @@ bool GMSHPlugin_GMSH::CheckHypothesis (SMESH_Mesh&                          aMes
 bool GMSHPlugin_GMSH::Compute(SMESH_Mesh&         aMesh,
                               const TopoDS_Shape& aShape)
 {
-  GMSHPlugin_Mesher mesher(&aMesh, aShape);
+  GMSHPlugin_Mesher mesher(&aMesh, aShape,/*2d=*/false);
   mesher.SetParameters(dynamic_cast<const GMSHPlugin_Hypothesis*>(_hypothesis));
   return mesher.Compute();
 }

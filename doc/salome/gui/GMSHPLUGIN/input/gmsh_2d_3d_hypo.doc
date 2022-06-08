@@ -5,7 +5,7 @@
 <b>Gmsh Parameters</b> hypotheses work only with <b>Gmsh 2D</b> and <b>Gmsh 3D</b> algorithms.
 <b>Gmsh 2D</b> and <b>Gmsh 3D</b> algorithms do not require definition of lower-level
 hypotheses and algorithms (2D and 1D for meshing 3D objects and 1D for meshing 2D objects).
-<b>Gmsh 2D</b> and <b>Gmsh 3D</b> algorithms do not support submeshes.
+<b>Gmsh 2D</b> and <b>Gmsh 3D</b> algorithms do support sub-meshes.
 
 <br>
 \image html Arguments.png Dialog boxes of <b>Gmsh 2D</b> and <b> Gmsh 3D</b> algorithms.

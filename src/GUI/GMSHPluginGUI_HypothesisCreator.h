@@ -45,8 +45,13 @@ typedef struct
   int                 mySubdivAlgo,myRemeshAlgo,myRemeshPara,mySmouthSteps;
   bool                myUseIncomplElem;
   bool                mySecondOrder;
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+  double              mySizeFactor,myMaxSize, myMinSize, myMeshCurvatureSize;
+  QString             myMaxSizeVar, myMinSizeVar, mySmouthStepsVar, mySizeFactorVar, myMeshCurvatureSizeVar;
+#else
   double              mySizeFactor,myMaxSize, myMinSize;
   QString             myMaxSizeVar, myMinSizeVar, mySmouthStepsVar, mySizeFactorVar;
+#endif
   mutable QString     myErrorMsg;
 } GmshHypothesisData;
 
@@ -95,6 +100,9 @@ private:
  QComboBox*        myRemeshPara;
  SMESHGUI_SpinBox* mySmouthSteps;
  SMESHGUI_SpinBox* mySizeFactor;
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+ SMESHGUI_SpinBox* myMeshCurvatureSize;
+#endif
  SMESHGUI_SpinBox* myMaxSize;
  SMESHGUI_SpinBox* myMinSize;
  QCheckBox*        myUseIncomplElem;

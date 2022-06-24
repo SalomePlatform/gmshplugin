@@ -97,6 +97,9 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
   double               _maxThreads;
 #endif
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+  double               _meshCurvatureSize;
+#endif
 
   std::set<std::string> _compounds;
 

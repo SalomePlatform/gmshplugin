@@ -53,7 +53,12 @@ enum Algo2D
    delaunay,
    frontal,
    delaunayforquad,
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+   packingparallelograms,
+   quadqs
+#else
    packingparallelograms
+#endif
   };
 
   enum Algo3D
@@ -61,7 +66,8 @@ enum Algo2D
    delaunay3,
    frontal3,
    mmg3d,
-   rtree
+   rtree,
+   hxt
   };
 
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
@@ -158,8 +164,17 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   aGroupLayout->addWidget( new QLabel( tr( "GMSH_2D_ALGO" ), GroupC1 ), row, 0 );
   my2DAlgo = new QComboBox( GroupC1 );
   QStringList types2DAlgo;
-  types2DAlgo << tr( "GMSH_AUTOMATIC" ) << tr( "GMSH_MESH_ADAPT" )   << tr( "GMSH_DELAUNAY" ) <<
-                 tr( "GMSH_FRONTAL" )       << tr( "GMSH_DELAUNAY_FOR_QUAD" ) << tr( "GMSH_PACKING_OF_PARALLELOGRAMS" );
+  types2DAlgo << tr( "GMSH_AUTOMATIC" )
+	      << tr( "GMSH_MESH_ADAPT" )
+	      << tr( "GMSH_DELAUNAY" )
+	      << tr( "GMSH_FRONTAL" )
+	      << tr( "GMSH_DELAUNAY_FOR_QUAD" )
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+	      << tr( "GMSH_PACKING_OF_PARALLELOGRAMS" )
+              << tr( "GMSH_QUASI_STRUCTURED_QUAD" );
+#else
+              << tr( "GMSH_PACKING_OF_PARALLELOGRAMS" );
+#endif
   my2DAlgo->addItems( types2DAlgo );
   aGroupLayout->addWidget( my2DAlgo, row, 1 );
   row++;
@@ -228,6 +243,14 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   mySizeFactor->RangeStepAndValidator( 1e-06, 1e+06, 0.1, "length_precision" );
   aGroupLayout->addWidget( mySizeFactor, row, 1 );
   row++;
+
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+  aGroupLayout->addWidget( new QLabel( tr( "GMSH_SIZE_FROM_CURVATURE" ), GroupC1 ), row, 0 );
+  myMeshCurvatureSize = new SMESHGUI_SpinBox( GroupC1 );
+  myMeshCurvatureSize->RangeStepAndValidator( 0.0, 1e+22, 1.0, "length_precision" );
+  aGroupLayout->addWidget( myMeshCurvatureSize, row, 1 );
+  row++;
+#endif
 
   aGroupLayout->addWidget( new QLabel( tr( "GMSH_MIN_SIZE" ), GroupC1 ), row, 0 );
   myMinSize = new SMESHGUI_SpinBox( GroupC1 );
@@ -380,6 +403,12 @@ void GMSHPluginGUI_HypothesisCreator::retrieveParams() const
     mySizeFactor->setValue( data.mySizeFactor );
   else
     mySizeFactor->setText( data.mySizeFactorVar );
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+  if(data.myMeshCurvatureSizeVar.isEmpty())
+    myMeshCurvatureSize->setValue( data.myMeshCurvatureSize );
+  else
+    myMeshCurvatureSize->setText( data.myMeshCurvatureSizeVar );
+#endif
   if(data.myMaxSizeVar.isEmpty())
     myMaxSize->setValue( data.myMaxSize );
   else
@@ -419,6 +448,9 @@ QString GMSHPluginGUI_HypothesisCreator::storeParams() const
 
   QString valStr = tr("GMSH_MAX_SIZE") + " = " + QString::number( data.myMaxSize ) + "; ";
   valStr += tr("GMSH_MIN_SIZE") + " = " + QString::number( data.myMinSize ) + "; ";
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+  valStr += tr("GMSH_SIZE_FROM_CURVATURE") + " = " + QString::number( data.myMeshCurvatureSize ) + "; ";
+#endif
   if ( data.mySecondOrder )
     valStr +=  tr("GMSH_SECOND_ORDER") + "; ";
 
@@ -443,6 +475,10 @@ bool GMSHPluginGUI_HypothesisCreator::readParamsFromHypo( GmshHypothesisData& h_
   h_data.myRemeshPara = (int) h->GetRemeshPara();
   h_data.mySmouthSteps = h->GetSmouthSteps();
   h_data.mySizeFactor = h->GetSizeFactor();
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+  h_data.myMeshCurvatureSize = h->GetMeshCurvatureSize();
+  h_data.myMeshCurvatureSizeVar = getVariableName("SetMeshCurvatureSize");
+#endif
   h_data.myMinSize = h->GetMinSize();
   h_data.myMaxSize = h->GetMaxSize();
   h_data.mySmouthStepsVar = getVariableName("SmouthSteps");
@@ -484,10 +520,16 @@ bool GMSHPluginGUI_HypothesisCreator::storeParamsToHypo( const GmshHypothesisDat
     h->SetRemeshPara( h_data.myRemeshPara );
     h->SetSmouthSteps( h_data.mySmouthSteps );
     h->SetSizeFactor( h_data.mySizeFactor );
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+    h->SetMeshCurvatureSize( h_data.myMeshCurvatureSize );
+#endif
     h->SetMinSize( h_data.myMinSize );
     h->SetMaxSize( h_data.myMaxSize );
     h->SetVarParameter( h_data.mySmouthStepsVar.toLatin1().constData(), "SmouthSteps");
     h->SetVarParameter( h_data.mySizeFactorVar.toLatin1().constData(), "SizeFactor");
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+    h->SetVarParameter( h_data.myMeshCurvatureSizeVar.toLatin1().constData(), "SetMeshCurvatureSize");
+#endif
     h->SetVarParameter( h_data.myMinSizeVar.toLatin1().constData(), "SetMinSize");
     h->SetVarParameter( h_data.myMaxSizeVar.toLatin1().constData(), "SetMaxSize");
     h->SetSecondOrder( h_data.mySecondOrder );
@@ -535,6 +577,10 @@ bool GMSHPluginGUI_HypothesisCreator::readParamsFromWidgets( GmshHypothesisData&
   h_data.myRemeshPara     = myRemeshPara->currentIndex();
   h_data.mySmouthSteps    = mySmouthSteps->value();
   h_data.mySizeFactor     = mySizeFactor->value();
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+  h_data.myMeshCurvatureSize    = myMeshCurvatureSize->value();
+  h_data.myMeshCurvatureSizeVar = myMeshCurvatureSize->text();
+#endif
   h_data.myMinSize        = myMinSize->value();
   h_data.myMaxSize        = myMaxSize->value();
   h_data.mySmouthStepsVar = mySmouthSteps->text();

@@ -67,6 +67,22 @@ CORBA::Double GMSHPlugin_Hypothesis_i::GetMaxSize()
   return this->GetImpl()->GetMaxSize();
 }
 
+
+void GMSHPlugin_Hypothesis_i::SetMeshCurvatureSize (CORBA::Double theMeshCurvatureSize)
+{
+  if ( isToSetParameter( GetMeshCurvatureSize(), theMeshCurvatureSize, METH_SetMeshCurvatureSize ))
+  {
+    this->GetImpl()->SetMeshCurvatureSize(theMeshCurvatureSize);
+    SMESH::TPythonDump() << _this() << ".SetMeshCurvatureSize( " << SMESH::TVar(theMeshCurvatureSize) << " )";
+  }
+}
+
+CORBA::Double GMSHPlugin_Hypothesis_i::GetMeshCurvatureSize()
+{
+  return this->GetImpl()->GetMeshCurvatureSize();
+}
+
+
 void GMSHPlugin_Hypothesis_i::SetMinSize (CORBA::Double theValue)
 {
   if ( isToSetParameter( GetMinSize(), theValue, METH_SetMinSize ))
@@ -319,6 +335,7 @@ int GMSHPlugin_Hypothesis_i::getParamIndex(const TCollection_AsciiString& method
   if ( method == "SetNbSegPerEdge"   ) return 2;
   if ( method == "SetNbSegPerRadius" ) return 3;
   if ( method == "SetMinSize" )        return nbVars-1;
+  if ( method == "SetMeshCurvatureSize" )        return 5;
 
   return SMESH_Hypothesis_i::getParamIndex( method, nbVars ); // return default value
 }
@@ -340,6 +357,7 @@ std::string GMSHPlugin_Hypothesis_i::getMethodOfParameter(const int paramIndex,
   case 2: return "SetNbSegPerEdge";
   case 3: return "SetNbSegPerRadius";
   case 4: return "SetMinSize";
+  case 5: return "SetMeshCurvatureSize";
   }
   return "";
 }

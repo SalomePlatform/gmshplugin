@@ -3,7 +3,7 @@
 \mainpage Introduction to GMSHPLUGIN
 
 \b GMSHPLUGIN plugin provides an integration of certain functionalities of the well known
-<a href="http://www.geuz.org/gmsh/"> <b>Gmsh three-dimensional finite element mesh generator</b></a>.
+<a href="https://www.gmsh.info"> <b>Gmsh three-dimensional finite element mesh generator</b></a>.
 It is possible to mesh 2D and 3D geometric entities. The plugin was especially developed to
 integrate the Gmsh compound functionality. The plugin provides support
 of sub-meshes.

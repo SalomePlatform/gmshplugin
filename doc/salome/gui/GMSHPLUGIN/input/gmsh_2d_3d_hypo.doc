@@ -10,12 +10,13 @@ hypotheses and algorithms (2D and 1D for meshing 3D objects and 1D for meshing 2
 <br>
 \image html Arguments.png Dialog boxes of <b>Gmsh 2D</b> and <b> Gmsh 3D</b> algorithms.
 
-The <b>Arguments tab</b> of the dialog boxes is very similar to the original <a href="http://www.geuz.org/gmsh/"> <b> Gmsh </b></a>
+The <b>Arguments tab</b> of the dialog boxes is very similar to the original <a href="https://gmsh.info"> <b> Gmsh </b></a>
 GUI general mesh option tab.
 One familiar with the original interface can refer to the <a href="http://www.geuz.org/gmsh/doc/texinfo/gmsh.html">
 <b> Gmsh documentation </b></a> for more information.
 We briefly describe each argument of the <b>Arguments tab</b> and give the original corresponding Gmsh keyword
 (referring to <a href="http://www.geuz.org/gmsh/doc/texinfo/gmsh.html#Mesh-options-list"> <b> Gmsh Mesh options list</b></a>):
+
 - <b>Name</b> - allows to define the name for the algorithm ("Gmsh Parameters" by default).
 - <b>2D algorithm</b> - allows to choose the Gmsh 2D algorithm for both 2D and 3D meshes.
 Original corresponding Gmsh keyword is <b>"Mesh.Algorithm"</b>.
@@ -29,14 +30,16 @@ Original corresponding Gmsh keyword is <b>"Mesh.SubdivisionAlgorithm"</b>.
 Original corresponding Gmsh keyword is <b>"Mesh.RemeshAlgorithm"</b>.
 - <b>Remeshing parametrization</b> - allows to choose the remeshing parametrization.
 Original corresponding Gmsh keyword is <b>"Mesh.RemeshParametrization"</b>.
-- <b>Smoothing steps</b> - Number of steps to smooth the final mesh.
+- <b>Smoothing steps</b> - number of steps to smooth the final mesh.
 Original corresponding Gmsh keyword is <b>"Mesh.Smoothing"</b>.
 - <b>Element size factor</b> - factor used to linearly increase or decrease the default mesh size.
-Original corresponding Gmsh keyword is <b>"Mesh.CharacteristicLengthFactor"</b>.
-- <b>Max Size</b> - maximum linear dimensions for mesh cells.
-Original corresponding Gmsh keyword is <b>"Mesh.CharacteristicLengthMax"</b>.
-- <b>Min Size</b> - minimum linear dimensions for mesh cells.
-Original corresponding Gmsh keyword is <b>"Mesh.CharacteristicLengthMin"</b>.
+Original corresponding Gmsh keyword is <b>"Mesh.MeshSizeFactor"</b>.
+- <b>Elements per 2Pi radians</b> -  number of  mesh elements per 2 Pi radians. This helps defining a mesh size with respect to the curvature of the underlying geometry.
+Original corresponding Gmsh keyword is <b>"Mesh.MeshSizeFromCurvature"</b>.
+- <b>Max. Size</b> - maximum linear dimensions for mesh cells.
+Original corresponding Gmsh keyword is <b>"Mesh.MeshSizeMax"</b>.
+- <b>Min. Size</b> - minimum linear dimensions for mesh cells.
+Original corresponding Gmsh keyword is <b>"Mesh.MeshSizeMin"</b>.
 - <b>Second Order</b> - if this box is checked in, the algorithm will create second order nodes on the mesh,
 which actually will become quadratic.
 Original corresponding Gmsh keyword is <b>"Mesh.ElementOrder"</b> (set to 2 if the box is checked in, else 1).

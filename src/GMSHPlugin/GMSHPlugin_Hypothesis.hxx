@@ -45,7 +45,12 @@ public:
    delaunay,
    frontal,
    delaunayforquad,
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+   packingparallelograms,
+   quadqs
+#else
    packingparallelograms
+#endif
   };
 
   void Set2DAlgo(Algo2D the2DAlgo);
@@ -124,6 +129,11 @@ public:
   
   void SetUseIncomplElem(bool theUseIncomplElem);
   bool GetUseIncomplElem() const { return _useIncomplElem; }
+
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+  void SetMeshCurvatureSize(double theMeshCurvatureSize);
+  double GetMeshCurvatureSize() const { return _meshCurvatureSize; }
+#endif
   
   void SetMaxSize(double theSize);
   double GetMaxSize() const { return _maxSize; }
@@ -170,6 +180,9 @@ private:
   RemeshPara    _remeshPara;
   double        _smouthSteps;
   double        _sizeFactor;
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+  double        _meshCurvatureSize;
+#endif
   double        _minSize, _maxSize;
   bool          _secondOrder, _useIncomplElem;
   bool          _is2d;

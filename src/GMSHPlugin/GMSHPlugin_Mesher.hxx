@@ -100,11 +100,9 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 
   std::set<std::string> _compounds;
 
-  int                                               _nodeNumShift;
   std::map< const MVertex *, const SMDS_MeshNode* > _nodeMap;
 
-  smIdType NodeID( const MVertex* v, bool checkMap = false );
-  const SMDS_MeshNode* Node( const MVertex* v, bool checkMap = false );
+  const SMDS_MeshNode* Node( const MVertex* v );
   SMESHDS_SubMesh* HasSubMesh( const TopoDS_Shape& s );
 
   void SetGmshOptions();

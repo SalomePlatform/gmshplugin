@@ -446,36 +446,17 @@ void GMSHPlugin_Mesher::SetCompoundMeshVisibility()
 
 //================================================================================
 /*!
- * \brief Get a node ID by a GMSH mesh veretx
+ * \brief Get a node by a GMSH mesh vertex
  */
 //================================================================================
 
-smIdType GMSHPlugin_Mesher::NodeID( const MVertex* v, bool checkMap )
+const SMDS_MeshNode* GMSHPlugin_Mesher::Node( const MVertex* v )
 {
-  if ( checkMap )
-  {
-    std::map< const MVertex *, const SMDS_MeshNode* >::iterator v2n = _nodeMap.find( v );
-    if ( v2n != _nodeMap.end() )
-      return v2n->second->GetID();
-  }
-  return _nodeNumShift + v->getNum();
-}
+  std::map< const MVertex *, const SMDS_MeshNode* >::iterator v2n = _nodeMap.find( v );
+  if ( v2n != _nodeMap.end() )
+    return v2n->second;
 
-//================================================================================
-/*!
- * \brief Get a node by a GMSH mesh veretx
- */
-//================================================================================
-
-const SMDS_MeshNode* GMSHPlugin_Mesher::Node( const MVertex* v, bool checkMap )
-{
-  if ( checkMap )
-  {
-    std::map< const MVertex *, const SMDS_MeshNode* >::iterator v2n = _nodeMap.find( v );
-    if ( v2n != _nodeMap.end() )
-      return v2n->second;
-  }
-  return _mesh->GetMeshDS()->FindNode( _nodeNumShift + v->getNum() );
+  return nullptr;
 }
 
 //================================================================================
@@ -520,8 +501,6 @@ void GMSHPlugin_Mesher::FillSMesh()
       sm->SetIsAlwaysComputed(true); // prevent from displaying errors
       continue;
     }
-    if ( HasSubMesh( topoVertex ))
-      continue; // a meshed sub-mesh
 
     // FILL SMESH FOR topoVertex
     //nodes
@@ -530,8 +509,17 @@ void GMSHPlugin_Mesher::FillSMesh()
       MVertex *v = gVertex->mesh_vertices[i];
       if(v->getIndex() >= 0)
       {
-        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(), NodeID(v));
-        meshDS->SetNodeOnVertex( node, topoVertex );
+        if ( SMESHDS_SubMesh* sm = HasSubMesh( topoVertex ))
+        {
+          const SMDS_MeshNode *node = sm->GetNodes()->next();
+          _nodeMap.insert({ v, node });
+        }
+        else
+        {
+          SMDS_MeshNode *node = meshDS->AddNode( v->x(),v->y(),v->z() );
+          meshDS->SetNodeOnVertex( node, topoVertex );
+          _nodeMap.insert({ v, node });
+        }
       }
     }
     // WE DON'T ADD 0D ELEMENTS because it does not follow the salome meshers philosophy
@@ -581,12 +569,13 @@ void GMSHPlugin_Mesher::FillSMesh()
       MVertex *v = gEdge->mesh_vertices[i];
       if ( v->getIndex() >= 0 )
       {
-        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),NodeID(v));
+        SMDS_MeshNode *node = meshDS->AddNode( v->x(),v->y(),v->z() );
 
         if ( isCompound )
           topoEdge = TopoDS::Edge( getShapeAtPoint( v->point(), topoEdges ));
 
         meshDS->SetNodeOnEdge( node, topoEdge );
+        _nodeMap.insert({ v, node });
       }
     }
   }
@@ -619,10 +608,10 @@ void GMSHPlugin_Mesher::FillSMesh()
       {
         if ( verts[j]->onWhat()->getVisibility() == 0 )
         {
-          SMDS_MeshNode *node = meshDS->AddNodeWithID(verts[j]->x(),verts[j]->y(),verts[j]->z(),
-                                                      NodeID( verts[j] ));
+          SMDS_MeshNode *node = meshDS->AddNode(verts[j]->x(),verts[j]->y(),verts[j]->z() );
           meshDS->SetNodeOnEdge( node, topoEdge );
           verts[j]->setEntity(gEdge);
+          _nodeMap.insert({ verts[j], node });
         }
       }
 
@@ -693,12 +682,13 @@ void GMSHPlugin_Mesher::FillSMesh()
       MVertex *v = gFace->mesh_vertices[i];
       if ( v->getIndex() >= 0 )
       {
-        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),NodeID(v));
+        SMDS_MeshNode *node = meshDS->AddNode( v->x(),v->y(),v->z() );
 
         if ( isCompound )
           topoFace = TopoDS::Face( getShapeAtPoint( v->point(), topoFaces ));
 
         meshDS->SetNodeOnFace( node, topoFace );
+        _nodeMap.insert({ v, node });
       }
     }
   }
@@ -729,14 +719,6 @@ void GMSHPlugin_Mesher::FillSMesh()
     if ( HasSubMesh( topoFace ))
       continue; // a meshed sub-mesh
 
-    // check if there is a meshed sub-mesh on FACE boundary
-    bool hasSubMesh = false;
-    for ( TopExp_Explorer edgeIt( topoFace, TopAbs_EDGE ); edgeIt.More(); edgeIt.Next() )
-    {
-      if (( hasSubMesh = HasSubMesh( edgeIt.Current() )))
-        break;
-    }
-
     //elements
     std::vector<MVertex*> verts;
     for ( size_t i = 0; i < gFace->getNumMeshElements(); i++ )
@@ -751,52 +733,53 @@ void GMSHPlugin_Mesher::FillSMesh()
       {
         if(verts[j]->onWhat()->getVisibility() == 0)
         {
-          SMDS_MeshNode *node = meshDS->AddNodeWithID(verts[j]->x(),verts[j]->y(),verts[j]->z(),NodeID(verts[j]));
+          SMDS_MeshNode *node = meshDS->AddNode(verts[j]->x(),verts[j]->y(),verts[j]->z());
           meshDS->SetNodeOnFace( node, topoFace );
-          verts[i]->setEntity(gFace);
+          _nodeMap.insert({ verts[j], node });
+          verts[j]->setEntity(gFace);
         }
       }
       switch (verts.size())
       {
         case 3:
-          face = meshDS->AddFace(Node( verts[0], hasSubMesh),
-                                 Node( verts[1], hasSubMesh),
-                                 Node( verts[2], hasSubMesh));
+          face = meshDS->AddFace(Node( verts[0]),
+                                 Node( verts[1]),
+                                 Node( verts[2]));
           break;
         case 4:
-          face = meshDS->AddFace(Node( verts[0], hasSubMesh),
-                                 Node( verts[1], hasSubMesh),
-                                 Node( verts[2], hasSubMesh),
-                                 Node( verts[3], hasSubMesh));
+          face = meshDS->AddFace(Node( verts[0]),
+                                 Node( verts[1]),
+                                 Node( verts[2]),
+                                 Node( verts[3]));
           break;
         case 6:
-          face = meshDS->AddFace(Node( verts[0], hasSubMesh),
-                                 Node( verts[1], hasSubMesh),
-                                 Node( verts[2], hasSubMesh),
-                                 Node( verts[3], hasSubMesh),
-                                 Node( verts[4], hasSubMesh),
-                                 Node( verts[5], hasSubMesh));
+          face = meshDS->AddFace(Node( verts[0]),
+                                 Node( verts[1]),
+                                 Node( verts[2]),
+                                 Node( verts[3]),
+                                 Node( verts[4]),
+                                 Node( verts[5]));
           break;
         case 8:
-          face = meshDS->AddFace(Node( verts[0], hasSubMesh),
-                                 Node( verts[1], hasSubMesh),
-                                 Node( verts[2], hasSubMesh),
-                                 Node( verts[3], hasSubMesh),
-                                 Node( verts[4], hasSubMesh),
-                                 Node( verts[5], hasSubMesh),
-                                 Node( verts[6], hasSubMesh),
-                                 Node( verts[7], hasSubMesh));
+          face = meshDS->AddFace(Node( verts[0]),
+                                 Node( verts[1]),
+                                 Node( verts[2]),
+                                 Node( verts[3]),
+                                 Node( verts[4]),
+                                 Node( verts[5]),
+                                 Node( verts[6]),
+                                 Node( verts[7]));
           break;
         case 9:
-          face = meshDS->AddFace(Node( verts[0], hasSubMesh),
-                                 Node( verts[1], hasSubMesh),
-                                 Node( verts[2], hasSubMesh),
-                                 Node( verts[3], hasSubMesh),
-                                 Node( verts[4], hasSubMesh),
-                                 Node( verts[5], hasSubMesh),
-                                 Node( verts[6], hasSubMesh),
-                                 Node( verts[7], hasSubMesh),
-                                 Node( verts[8], hasSubMesh));
+          face = meshDS->AddFace(Node( verts[0]),
+                                 Node( verts[1]),
+                                 Node( verts[2]),
+                                 Node( verts[3]),
+                                 Node( verts[4]),
+                                 Node( verts[5]),
+                                 Node( verts[6]),
+                                 Node( verts[7]),
+                                 Node( verts[8]));
           break;
         default:
           ASSERT(false);
@@ -820,14 +803,6 @@ void GMSHPlugin_Mesher::FillSMesh()
     // GET topoSolid CORRESPONDING TO gRegion
     TopoDS_Solid topoSolid = *((TopoDS_Solid*)gRegion->getNativePtr());
 
-    // check if there is a meshed sub-mesh on SOLID boundary
-    bool hasSubMesh = false;
-    for ( TopExp_Explorer faceIt( topoSolid, TopAbs_FACE ); faceIt.More(); faceIt.Next() )
-    {
-      if (( hasSubMesh = HasSubMesh( faceIt.Current() )))
-        break;
-    }      
-
     // FILL SMESH FOR topoSolid
 
     //nodes
@@ -836,8 +811,9 @@ void GMSHPlugin_Mesher::FillSMesh()
       MVertex *v = gRegion->mesh_vertices[i];
       if(v->getIndex() >= 0)
       {
-        SMDS_MeshNode *node = meshDS->AddNodeWithID(v->x(),v->y(),v->z(),NodeID(v));
+        SMDS_MeshNode *node = meshDS->AddNode( v->x(),v->y(),v->z() );
         meshDS->SetNodeInVolume( node, topoSolid );
+        _nodeMap.insert({ v, node });
       }
     }
 
@@ -851,162 +827,162 @@ void GMSHPlugin_Mesher::FillSMesh()
       SMDS_MeshVolume* volume = 0;
       switch (verts.size()){
       case 4:
-        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
-                                   Node( verts[2], hasSubMesh ),
-                                   Node( verts[1], hasSubMesh ),
-                                   Node( verts[3], hasSubMesh));
+        volume = meshDS->AddVolume(Node( verts[0]),
+                                   Node( verts[2]),
+                                   Node( verts[1]),
+                                   Node( verts[3]));
         break;
       case 5:
-        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
-                                   Node( verts[3], hasSubMesh ),
-                                   Node( verts[2], hasSubMesh ),
-                                   Node( verts[1], hasSubMesh ),
-                                   Node( verts[4], hasSubMesh));
+        volume = meshDS->AddVolume(Node( verts[0]),
+                                   Node( verts[3]),
+                                   Node( verts[2]),
+                                   Node( verts[1]),
+                                   Node( verts[4]));
         break;
       case 6:
-        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
-                                   Node( verts[2], hasSubMesh ),
-                                   Node( verts[1], hasSubMesh ),
-                                   Node( verts[3], hasSubMesh ),
-                                   Node( verts[5], hasSubMesh ),
-                                   Node( verts[4], hasSubMesh));
+        volume = meshDS->AddVolume(Node( verts[0]),
+                                   Node( verts[2]),
+                                   Node( verts[1]),
+                                   Node( verts[3]),
+                                   Node( verts[5]),
+                                   Node( verts[4]));
         break;
       case 8:
-        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
-                                   Node( verts[3], hasSubMesh ),
-                                   Node( verts[2], hasSubMesh ),
-                                   Node( verts[1], hasSubMesh ),
-                                   Node( verts[4], hasSubMesh ),
-                                   Node( verts[7], hasSubMesh ),
-                                   Node( verts[6], hasSubMesh ),
-                                   Node( verts[5], hasSubMesh));
+        volume = meshDS->AddVolume(Node( verts[0]),
+                                   Node( verts[3]),
+                                   Node( verts[2]),
+                                   Node( verts[1]),
+                                   Node( verts[4]),
+                                   Node( verts[7]),
+                                   Node( verts[6]),
+                                   Node( verts[5]));
         break;
       case 10:
-        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
-                                   Node( verts[2], hasSubMesh ),
-                                   Node( verts[1], hasSubMesh ),
-                                   Node( verts[3], hasSubMesh ),
-                                   Node( verts[6], hasSubMesh ),
-                                   Node( verts[5], hasSubMesh ),
-                                   Node( verts[4], hasSubMesh ),
-                                   Node( verts[7], hasSubMesh ),
-                                   Node( verts[8], hasSubMesh ),
-                                   Node( verts[9], hasSubMesh));
+        volume = meshDS->AddVolume(Node( verts[0]),
+                                   Node( verts[2]),
+                                   Node( verts[1]),
+                                   Node( verts[3]),
+                                   Node( verts[6]),
+                                   Node( verts[5]),
+                                   Node( verts[4]),
+                                   Node( verts[7]),
+                                   Node( verts[8]),
+                                   Node( verts[9]));
         break;
       case 13:
-        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
-                                   Node( verts[3], hasSubMesh ),
-                                   Node( verts[2], hasSubMesh ),
-                                   Node( verts[1], hasSubMesh ),
-                                   Node( verts[4], hasSubMesh ),
-                                   Node( verts[6], hasSubMesh ),
-                                   Node( verts[10],hasSubMesh ),
-                                   Node( verts[8], hasSubMesh ),
-                                   Node( verts[5], hasSubMesh ),
-                                   Node( verts[7], hasSubMesh ),
-                                   Node( verts[12],hasSubMesh ),
-                                   Node( verts[11],hasSubMesh ),
-                                   Node( verts[9], hasSubMesh));
+        volume = meshDS->AddVolume(Node( verts[0] ),
+                                   Node( verts[3] ),
+                                   Node( verts[2] ),
+                                   Node( verts[1] ),
+                                   Node( verts[4] ),
+                                   Node( verts[6] ),
+                                   Node( verts[10] ),
+                                   Node( verts[8] ),
+                                   Node( verts[5] ),
+                                   Node( verts[7] ),
+                                   Node( verts[12] ),
+                                   Node( verts[11] ),
+                                   Node( verts[9]));
         break;
       case 14: // same as case 13, because no pyra14 in smesh
-        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
-                                   Node( verts[3], hasSubMesh ),
-                                   Node( verts[2], hasSubMesh ),
-                                   Node( verts[1], hasSubMesh ),
-                                   Node( verts[4], hasSubMesh ),
-                                   Node( verts[6], hasSubMesh ),
-                                   Node( verts[10],hasSubMesh ),
-                                   Node( verts[8], hasSubMesh ),
-                                   Node( verts[5], hasSubMesh ),
-                                   Node( verts[7], hasSubMesh ),
-                                   Node( verts[12],hasSubMesh ),
-                                   Node( verts[11],hasSubMesh ),
-                                   Node( verts[9], hasSubMesh));
+        volume = meshDS->AddVolume(Node( verts[0] ),
+                                   Node( verts[3] ),
+                                   Node( verts[2] ),
+                                   Node( verts[1] ),
+                                   Node( verts[4] ),
+                                   Node( verts[6] ),
+                                   Node( verts[10] ),
+                                   Node( verts[8] ),
+                                   Node( verts[5] ),
+                                   Node( verts[7] ),
+                                   Node( verts[12] ),
+                                   Node( verts[11] ),
+                                   Node( verts[9]));
         break;
       case 15:
-        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
-                                   Node( verts[2], hasSubMesh ),
-                                   Node( verts[1], hasSubMesh ),
-                                   Node( verts[3], hasSubMesh ),
-                                   Node( verts[5], hasSubMesh ),
-                                   Node( verts[4], hasSubMesh ),
-                                   Node( verts[7], hasSubMesh ),
-                                   Node( verts[9], hasSubMesh ),
-                                   Node( verts[6], hasSubMesh ),
-                                   Node( verts[13],hasSubMesh ),
-                                   Node( verts[14],hasSubMesh ),
-                                   Node( verts[12],hasSubMesh ),
-                                   Node( verts[8], hasSubMesh ),
-                                   Node( verts[11],hasSubMesh ),
-                                   Node( verts[10],hasSubMesh));
+        volume = meshDS->AddVolume(Node( verts[0] ),
+                                   Node( verts[2] ),
+                                   Node( verts[1] ),
+                                   Node( verts[3] ),
+                                   Node( verts[5] ),
+                                   Node( verts[4] ),
+                                   Node( verts[7] ),
+                                   Node( verts[9] ),
+                                   Node( verts[6] ),
+                                   Node( verts[13] ),
+                                   Node( verts[14] ),
+                                   Node( verts[12] ),
+                                   Node( verts[8] ),
+                                   Node( verts[11] ),
+                                   Node( verts[10]));
         break;
       case 18: // same as case 15, because no penta18 in smesh
-        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
-                                   Node( verts[2], hasSubMesh ),
-                                   Node( verts[1], hasSubMesh ),
-                                   Node( verts[3], hasSubMesh ),
-                                   Node( verts[5], hasSubMesh ),
-                                   Node( verts[4], hasSubMesh ),
-                                   Node( verts[7], hasSubMesh ),
-                                   Node( verts[9], hasSubMesh ),
-                                   Node( verts[6], hasSubMesh ),
-                                   Node( verts[13],hasSubMesh ),
-                                   Node( verts[14],hasSubMesh ),
-                                   Node( verts[12],hasSubMesh ),
-                                   Node( verts[8], hasSubMesh ),
-                                   Node( verts[11],hasSubMesh ),
-                                   Node( verts[10],hasSubMesh));
+        volume = meshDS->AddVolume(Node( verts[0] ),
+                                   Node( verts[2] ),
+                                   Node( verts[1] ),
+                                   Node( verts[3] ),
+                                   Node( verts[5] ),
+                                   Node( verts[4] ),
+                                   Node( verts[7] ),
+                                   Node( verts[9] ),
+                                   Node( verts[6] ),
+                                   Node( verts[13] ),
+                                   Node( verts[14] ),
+                                   Node( verts[12] ),
+                                   Node( verts[8] ),
+                                   Node( verts[11] ),
+                                   Node( verts[10]));
         break;
       case 20:
-        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
-                                   Node( verts[3], hasSubMesh ),
-                                   Node( verts[2], hasSubMesh ),
-                                   Node( verts[1], hasSubMesh ),
-                                   Node( verts[4], hasSubMesh ),
-                                   Node( verts[7], hasSubMesh ),
-                                   Node( verts[6], hasSubMesh ),
-                                   Node( verts[5], hasSubMesh ),
-                                   Node( verts[9], hasSubMesh ),
-                                   Node( verts[13],hasSubMesh ),
-                                   Node( verts[11],hasSubMesh ),
-                                   Node( verts[8] ,hasSubMesh ),
-                                   Node( verts[17],hasSubMesh ),
-                                   Node( verts[19],hasSubMesh ),
-                                   Node( verts[18],hasSubMesh ),
-                                   Node( verts[16],hasSubMesh ),
-                                   Node( verts[10],hasSubMesh ),
-                                   Node( verts[15],hasSubMesh ),
-                                   Node( verts[14],hasSubMesh ),
-                                   Node( verts[12],hasSubMesh));
+        volume = meshDS->AddVolume(Node( verts[0] ),
+                                   Node( verts[3] ),
+                                   Node( verts[2] ),
+                                   Node( verts[1] ),
+                                   Node( verts[4] ),
+                                   Node( verts[7] ),
+                                   Node( verts[6] ),
+                                   Node( verts[5] ),
+                                   Node( verts[9] ),
+                                   Node( verts[13] ),
+                                   Node( verts[11] ),
+                                   Node( verts[8] ),
+                                   Node( verts[17] ),
+                                   Node( verts[19] ),
+                                   Node( verts[18] ),
+                                   Node( verts[16] ),
+                                   Node( verts[10] ),
+                                   Node( verts[15] ),
+                                   Node( verts[14] ),
+                                   Node( verts[12]));
         break;
       case 27:
-        volume = meshDS->AddVolume(Node( verts[0], hasSubMesh ),
-                                   Node( verts[3], hasSubMesh ),
-                                   Node( verts[2], hasSubMesh ),
-                                   Node( verts[1], hasSubMesh ),
-                                   Node( verts[4], hasSubMesh ),
-                                   Node( verts[7], hasSubMesh ),
-                                   Node( verts[6], hasSubMesh ),
-                                   Node( verts[5], hasSubMesh ),
-                                   Node( verts[9], hasSubMesh ),
-                                   Node( verts[13],hasSubMesh ),
-                                   Node( verts[11],hasSubMesh ),
-                                   Node( verts[8] ,hasSubMesh ),
-                                   Node( verts[17],hasSubMesh ),
-                                   Node( verts[19],hasSubMesh ),
-                                   Node( verts[18],hasSubMesh ),
-                                   Node( verts[16],hasSubMesh ),
-                                   Node( verts[10],hasSubMesh ),
-                                   Node( verts[15],hasSubMesh ),
-                                   Node( verts[14],hasSubMesh ),
-                                   Node( verts[12],hasSubMesh ),
-                                   Node( verts[20],hasSubMesh ),
-                                   Node( verts[22],hasSubMesh ),
-                                   Node( verts[24],hasSubMesh ),
-                                   Node( verts[23],hasSubMesh ),
-                                   Node( verts[21],hasSubMesh ),
-                                   Node( verts[25],hasSubMesh ),
-                                   Node( verts[26],hasSubMesh ));
+        volume = meshDS->AddVolume(Node( verts[0] ),
+                                   Node( verts[3] ),
+                                   Node( verts[2] ),
+                                   Node( verts[1] ),
+                                   Node( verts[4] ),
+                                   Node( verts[7] ),
+                                   Node( verts[6] ),
+                                   Node( verts[5] ),
+                                   Node( verts[9] ),
+                                   Node( verts[13] ),
+                                   Node( verts[11] ),
+                                   Node( verts[8] ),
+                                   Node( verts[17] ),
+                                   Node( verts[19] ),
+                                   Node( verts[18] ),
+                                   Node( verts[16] ),
+                                   Node( verts[10] ),
+                                   Node( verts[15] ),
+                                   Node( verts[14] ),
+                                   Node( verts[12] ),
+                                   Node( verts[20] ),
+                                   Node( verts[22] ),
+                                   Node( verts[24] ),
+                                   Node( verts[23] ),
+                                   Node( verts[21] ),
+                                   Node( verts[25] ),
+                                   Node( verts[26] ));
         break;
       default:
         ASSERT(false);
@@ -1197,14 +1173,6 @@ bool GMSHPlugin_Mesher::Compute()
 void GMSHPlugin_Mesher::Set1DSubMeshes( GModel* gModel )
 {
   SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
-  if ( meshDS->MaxNodeID() > meshDS->NbNodes() ) // holes in node numeration => compact
-  {
-    meshDS->setMyModified();
-    meshDS->Modified();
-    meshDS->CompactMesh();
-  }
-  _nodeNumShift = meshDS->NbNodes();
-
 
   for(GModel::eiter it = gModel->firstEdge(); it != gModel->lastEdge(); ++it)
   {

@@ -1098,7 +1098,9 @@ bool GMSHPlugin_Mesher::Compute()
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
   SetMaxThreadsGmsh();
 #endif
-  GmshInitialize();
+  //RNV: to avoid modification of PATH and PYTHONPATH
+  char* argv[] = {"-noenv"};
+  GmshInitialize(1,argv);
   SetGmshOptions();
   _gModel = new GModel();
   mymsg msg(_gModel);

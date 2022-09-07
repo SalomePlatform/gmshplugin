@@ -23,7 +23,7 @@ INCLUDE(tests.set)
 INCLUDE(examples.set)
 
 SET(COMPONENT_NAME GMSHPLUGIN)
-SET(SALOME_TEST_DRIVER "$ENV{KERNEL_ROOT_DIR}/bin/salome/appliskel/salome_test_driver.py")
+SET(SALOME_TEST_DRIVER "$ENV{KERNEL_ROOT_DIR}/bin/salome/appliskel/python_test_driver.py")
 SET(TIMEOUT        300)
 
 

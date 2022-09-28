@@ -44,6 +44,9 @@ GMSHPlugin_Hypothesis::GMSHPlugin_Hypothesis (int hypId,
     _remeshPara     (harmonic),
     _smouthSteps    (1),
     _sizeFactor     (1),
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+    _meshCurvatureSize(0),
+#endif
     _minSize        (0),
     _maxSize        (1e22),
     _secondOrder    (false),
@@ -143,6 +146,17 @@ void GMSHPlugin_Hypothesis::SetUseIncomplElem(bool theUseIncomplElem)
   }
 }
 
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+void GMSHPlugin_Hypothesis::SetMeshCurvatureSize(double theMeshCurvatureSize)
+{
+  if (theMeshCurvatureSize != _meshCurvatureSize)
+  {
+    _meshCurvatureSize = theMeshCurvatureSize;
+    NotifySubMeshesHypothesisModification();
+  }
+}
+#endif
+
 void GMSHPlugin_Hypothesis::SetMaxSize(double theSize)
 {
   if (theSize != _maxSize)
@@ -206,6 +220,9 @@ std::ostream & GMSHPlugin_Hypothesis::SaveTo(std::ostream & save)
           " " << _remeshPara           <<
           " " << _smouthSteps          <<
           " " << _sizeFactor           <<
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+          " " << _meshCurvatureSize    <<
+#endif
           " " << _maxSize              <<
           " " << _minSize              <<
           " " << (int)_secondOrder     <<
@@ -287,6 +304,14 @@ std::istream & GMSHPlugin_Hypothesis::LoadFrom(std::istream & load)
     _sizeFactor = val;
   else
     load.clear(ios::badbit | load.rdstate());
+
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+  isOK = static_cast<bool>(load >> val);
+  if (isOK)
+    _meshCurvatureSize = val;
+  else
+    load.clear(ios::badbit | load.rdstate());
+#endif
 
   isOK = static_cast<bool>(load >> val);
   if (isOK)

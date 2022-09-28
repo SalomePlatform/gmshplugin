@@ -20,6 +20,10 @@
         <translation>Hypothesis Construction</translation>
     </message>
     <message>
+        <source>GMSH_SIZE_FROM_CURVATURE</source>
+        <translation>Elements per 2Pi radians</translation>
+    </message>
+    <message>
         <source>GMSH_MAX_SIZE</source>
         <translation>Max. Size</translation>
     </message>
@@ -61,7 +65,7 @@
     </message>
     <message>
         <source>GMSH_MESH_ADAPT</source>
-        <translation>Mesh adapt</translation>
+        <translation>MeshAdapt</translation>
     </message>
     <message>
         <source>GMSH_DELAUNAY</source>
@@ -69,11 +73,15 @@
     </message>
     <message>
         <source>GMSH_FRONTAL</source>
-        <translation>Frontal</translation>
+        <translation>Frontal-Delaunay</translation>
     </message>
     <message>
         <source>GMSH_DELAUNAY_FOR_QUAD</source>
-        <translation>Delaunay for quads</translation>
+        <translation>Frontal-Delaunay for Quads</translation>
+    </message>
+    <message>
+        <source>GMSH_QUASI_STRUCTURED_QUAD</source>
+        <translation>Quasi-Structured Quad</translation>
     </message>
     <message>
         <source>GMSH_PACKING_OF_PARALLELOGRAMS</source>

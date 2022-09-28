@@ -176,6 +176,9 @@ void GMSHPlugin_Mesher::SetParameters(const GMSHPlugin_Hypothesis* hyp)
     _remeshPara      = hyp->GetRemeshPara();
     _smouthSteps     = hyp->GetSmouthSteps();
     _sizeFactor      = hyp->GetSizeFactor();
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+    _meshCurvatureSize = hyp->GetMeshCurvatureSize();
+#endif
     _minSize         = hyp->GetMinSize();
     _maxSize         = hyp->GetMaxSize();
     _secondOrder     = hyp->GetSecondOrder();
@@ -193,6 +196,9 @@ void GMSHPlugin_Mesher::SetParameters(const GMSHPlugin_Hypothesis* hyp)
     _remeshPara      = 0;
     _smouthSteps     = 1;
     _sizeFactor      = 1;
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+    _meshCurvatureSize = 0;
+#endif
     _minSize         = 0;
     _maxSize         = 1e22;
     _secondOrder     = false;
@@ -212,8 +218,11 @@ void GMSHPlugin_Mesher::SetParameters(const GMSHPlugin_Hypothesis* hyp)
 void GMSHPlugin_Mesher::SetMaxThreadsGmsh()
 {
   MESSAGE("GMSHPlugin_Mesher::SetMaxThreadsGmsh");
-  if (_compounds.size() > 0)
+  // compound meshing (_compounds.size() > 0) and quad meshing (_algo2d >= 5) will
+  // not be multi-threaded
+  if (_compounds.size() > 0 || _algo2d >= 5){
     _maxThreads = 1;
+  }
   else
     _maxThreads = omp_get_max_threads();
 }
@@ -252,6 +261,9 @@ void GMSHPlugin_Mesher::SetGmshOptions()
   mapAlgo2d[3]=6; // Frontal-Delaunay
   mapAlgo2d[4]=8; // DelQuad (Frontal-Delaunay for Quads)
   mapAlgo2d[5]=9; // Packing of parallelograms
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+  mapAlgo2d[6]=11;// Quasistructured quads with cross-fields
+#endif
 
   std::map <int,double> mapAlgo3d;
   mapAlgo3d[0]=1; // Delaunay
@@ -280,6 +292,10 @@ void GMSHPlugin_Mesher::SetGmshOptions()
   //ASSERT(ok);
   ok = GmshSetOption("Mesh", "Smoothing"                , (double)_smouthSteps)  ;
   //ASSERT(ok);
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
+  ok = GmshSetOption("Mesh", "MeshSizeFromCurvature"       , _meshCurvatureSize) ;
+  ASSERT(ok);
+#endif
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
   ok = GmshSetOption("Mesh", "MeshSizeFactor"              , _sizeFactor)     ;
   ASSERT(ok);

@@ -20,6 +20,10 @@
         <translation>Construction d&apos;une hypothèse</translation>
     </message>
     <message>
+        <source>GMSH_SIZE_FROM_CURVATURE</source>
+        <translation>Eléments par 2Pi radians</translation>
+    </message>
+    <message>
         <source>GMSH_MAX_SIZE</source>
         <translation>Taille maximale</translation>
     </message>
@@ -78,6 +82,10 @@
     <message>
         <source>GMSH_DELAUNAY_FOR_QUAD</source>
         <translation>Delaunay pour quads</translation>
+    </message>
+    <message>
+        <source>GMSH_QUASI_STRUCTURED_QUAD</source>
+        <translation>Quadrangles quasi-structuré</translation>
     </message>
     <message>
         <source>GMSH_PACKING_OF_PARALLELOGRAMS</source>

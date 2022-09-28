@@ -46,6 +46,8 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Hypothesis_i:
   virtual ~GMSHPlugin_Hypothesis_i();
   
   // Ajout d'un truc
+  void SetMeshCurvatureSize(CORBA::Double theMeshCurvatureSize);
+  CORBA::Double GetMeshCurvatureSize();
   
   void SetMaxSize(CORBA::Double theSize);
   CORBA::Double GetMaxSize();
@@ -113,6 +115,7 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Hypothesis_i:
   // to remember whether a parameter is already set (issue 0021364)
   enum SettingMethod
   {
+    METH_SetMeshCurvatureSize = 5,
     METH_SetMaxSize          = 1,
     METH_SetMinSize          = 2,
     METH_SetSecondOrder      = 4,

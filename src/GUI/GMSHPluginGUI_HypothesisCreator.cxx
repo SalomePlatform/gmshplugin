@@ -114,6 +114,7 @@ GMSHPluginGUI_HypothesisCreator::GMSHPluginGUI_HypothesisCreator( const QString&
   myGeomSelectionTools = NULL;
   myCompoundSet.clear();
   myIs2D = ( theHypType.endsWith("2D"));
+  myIs3D = (theHypType.endsWith("3D"));
 }
 
 GMSHPluginGUI_HypothesisCreator::~GMSHPluginGUI_HypothesisCreator()
@@ -161,23 +162,27 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
     row++;
   }
 
-  aGroupLayout->addWidget( new QLabel( tr( "GMSH_2D_ALGO" ), GroupC1 ), row, 0 );
-  my2DAlgo = new QComboBox( GroupC1 );
-  QStringList types2DAlgo;
-  types2DAlgo << tr( "GMSH_AUTOMATIC" )
-	      << tr( "GMSH_MESH_ADAPT" )
-	      << tr( "GMSH_DELAUNAY" )
-	      << tr( "GMSH_FRONTAL" )
-	      << tr( "GMSH_DELAUNAY_FOR_QUAD" )
+  my2DAlgo = 0;
+  if (!myIs3D)
+  {
+    aGroupLayout->addWidget(new QLabel(tr("GMSH_2D_ALGO"), GroupC1), row, 0);
+    my2DAlgo = new QComboBox(GroupC1);
+    QStringList types2DAlgo;
+    types2DAlgo << tr("GMSH_AUTOMATIC")
+      << tr("GMSH_MESH_ADAPT")
+      << tr("GMSH_DELAUNAY")
+      << tr("GMSH_FRONTAL")
+      << tr("GMSH_DELAUNAY_FOR_QUAD")
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
-	      << tr( "GMSH_PACKING_OF_PARALLELOGRAMS" )
-              << tr( "GMSH_QUASI_STRUCTURED_QUAD" );
+      << tr("GMSH_PACKING_OF_PARALLELOGRAMS")
+      << tr("GMSH_QUASI_STRUCTURED_QUAD");
 #else
-              << tr( "GMSH_PACKING_OF_PARALLELOGRAMS" );
+      << tr("GMSH_PACKING_OF_PARALLELOGRAMS");
 #endif
-  my2DAlgo->addItems( types2DAlgo );
-  aGroupLayout->addWidget( my2DAlgo, row, 1 );
-  row++;
+    my2DAlgo->addItems(types2DAlgo);
+    aGroupLayout->addWidget(my2DAlgo, row, 1);
+    row++;
+  }
 
   my3DAlgo = 0;
   if ( !myIs2D )
@@ -192,45 +197,55 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
     row++;
   }
 
-  aGroupLayout->addWidget( new QLabel( tr( "GMSH_2D_RECOMB_ALGO" ), GroupC1 ), row, 0 );
-  myRecomb2DAlgo = new QComboBox( GroupC1 );
-  QStringList typesRecomb2DAlgo;
+  myRecomb2DAlgo = 0;
+  if (!myIs3D)
+  {
+    aGroupLayout->addWidget(new QLabel(tr("GMSH_2D_RECOMB_ALGO"), GroupC1), row, 0);
+    myRecomb2DAlgo = new QComboBox(GroupC1);
+    QStringList typesRecomb2DAlgo;
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
-  typesRecomb2DAlgo << tr( "GMSH_SIMPLE" ) << tr( "GMSH_BLOSSOM" ) << tr( "GMSH_SIMPLE_FULL_QUADS" ) << tr( "GMSH_BLOSSOM_FULL_QUADS" );
+    typesRecomb2DAlgo << tr("GMSH_SIMPLE") << tr("GMSH_BLOSSOM") << tr("GMSH_SIMPLE_FULL_QUADS") << tr("GMSH_BLOSSOM_FULL_QUADS");
 #else
-  typesRecomb2DAlgo << tr( "GMSH_STANDARD" ) << tr( "GMSH_BLOSSOM" );
+    typesRecomb2DAlgo << tr("GMSH_STANDARD") << tr("GMSH_BLOSSOM");
 #endif
-  myRecomb2DAlgo->addItems( typesRecomb2DAlgo );
-  aGroupLayout->addWidget( myRecomb2DAlgo, row, 1 );
-  row++;
-
+    myRecomb2DAlgo->addItems(typesRecomb2DAlgo);
+    aGroupLayout->addWidget(myRecomb2DAlgo, row, 1);
+    row++;
+  }
   myRecombineAll = new QCheckBox( tr( "GMSH_RECOMBINE_ALL" ), GroupC1 );
   aGroupLayout->addWidget( myRecombineAll, row, 0 );
   row++;
 
-  aGroupLayout->addWidget( new QLabel( tr( "GMSH_SUBDIV_ALGO" ), GroupC1 ), row, 0 );
-  mySubdivAlgo = new QComboBox( GroupC1 );
+  mySubdivAlgo = 0;
+  
+  aGroupLayout->addWidget(new QLabel(tr("GMSH_SUBDIV_ALGO"), GroupC1), row, 0);
+  mySubdivAlgo = new QComboBox(GroupC1);
   QStringList typesSubdivAlgo;
-  typesSubdivAlgo << tr( "GMSH_NONE" ) << tr( "GMSH_ALL_QUADS" )   << tr( "GMSH_ALL_HEXAS" );
-  mySubdivAlgo->addItems( typesSubdivAlgo );
-  aGroupLayout->addWidget( mySubdivAlgo, row, 1 );
+  typesSubdivAlgo << tr("GMSH_NONE") << tr("GMSH_ALL_QUADS") << tr("GMSH_ALL_HEXAS");
+  mySubdivAlgo->addItems(typesSubdivAlgo);
+  aGroupLayout->addWidget(mySubdivAlgo, row, 1);
   row++;
 
-  aGroupLayout->addWidget( new QLabel( tr( "GMSH_REMESH_ALGO" ), GroupC1 ), row, 0 );
-  myRemeshAlgo = new QComboBox( GroupC1 );
-  QStringList typesRemeshAlgo;
-  typesRemeshAlgo << tr( "GMSH_NO_SPLIT" ) << tr( "GMSH_AUTO" )   << tr( "GMSH_AUTO_ONLY_WITH_METIS" );
-  myRemeshAlgo->addItems( typesRemeshAlgo );
-  aGroupLayout->addWidget( myRemeshAlgo, row, 1 );
-  row++;
+  myRemeshAlgo = 0;
+  myRemeshPara = 0;
+  if (!myIs3D)
+  {
+    aGroupLayout->addWidget(new QLabel(tr("GMSH_REMESH_ALGO"), GroupC1), row, 0);
+    myRemeshAlgo = new QComboBox(GroupC1);
+    QStringList typesRemeshAlgo;
+    typesRemeshAlgo << tr("GMSH_NO_SPLIT") << tr("GMSH_AUTO") << tr("GMSH_AUTO_ONLY_WITH_METIS");
+    myRemeshAlgo->addItems(typesRemeshAlgo);
+    aGroupLayout->addWidget(myRemeshAlgo, row, 1);
+    row++;
 
-  aGroupLayout->addWidget( new QLabel( tr( "GMSH_REMESH_PARA" ), GroupC1 ), row, 0 );
-  myRemeshPara = new QComboBox( GroupC1 );
-  QStringList typesRemeshPara;
-  typesRemeshPara << tr( "GMSH_HARMONIC" ) << tr( "GMSH_CONFORMAL" )   << tr( "GMSH_RBF_HARMONIC" );
-  myRemeshPara->addItems( typesRemeshPara );
-  aGroupLayout->addWidget( myRemeshPara, row, 1 );
-  row++;
+    aGroupLayout->addWidget(new QLabel(tr("GMSH_REMESH_PARA"), GroupC1), row, 0);
+    myRemeshPara = new QComboBox(GroupC1);
+    QStringList typesRemeshPara;
+    typesRemeshPara << tr("GMSH_HARMONIC") << tr("GMSH_CONFORMAL") << tr("GMSH_RBF_HARMONIC");
+    myRemeshPara->addItems(typesRemeshPara);
+    aGroupLayout->addWidget(myRemeshPara, row, 1);
+    row++;
+  }
 
   aGroupLayout->addWidget( new QLabel( tr( "GMSH_SMOOTHING_STEPS" ), GroupC1 ), row, 0 );
   mySmouthSteps = new SMESHGUI_SpinBox( GroupC1 );
@@ -274,36 +289,38 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   connect( mySecondOrder, SIGNAL( toggled( bool ) ), this, SLOT( updateWidgets() ) );
 
   // Compounds
-  QWidget* compoundGroup = new QWidget();
-  tab->insertTab(1, compoundGroup, tr("GMSH_COMPOUND"));
+  if (!myIs3D)
+  {
+    QWidget* compoundGroup = new QWidget();
+    tab->insertTab(1, compoundGroup, tr("GMSH_COMPOUND"));
 
-  myCompoundTable = new QTableWidget(0, 2, compoundGroup);
-  QGridLayout* compoundLayout = new QGridLayout(compoundGroup);
-  compoundLayout->addWidget(myCompoundTable, 1, 0, 8, 1);
+    myCompoundTable = new QTableWidget(0, 2, compoundGroup);
+    QGridLayout* compoundLayout = new QGridLayout(compoundGroup);
+    compoundLayout->addWidget(myCompoundTable, 1, 0, 8, 1);
 
-  QStringList compoundHeaders;
-  compoundHeaders << tr( "GMSH_COMPOUND_ENTRY_COLUMN" ) << tr( "GMSH_COMPOUND_NAME_COLUMN" );
-  myCompoundTable->setHorizontalHeaderLabels(compoundHeaders);
-  myCompoundTable->horizontalHeader()->hideSection(0);
-  myCompoundTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-  myCompoundTable->resizeColumnToContents(1);
-  myCompoundTable->setAlternatingRowColors(true);
-  myCompoundTable->verticalHeader()->hide();
+    QStringList compoundHeaders;
+    compoundHeaders << tr("GMSH_COMPOUND_ENTRY_COLUMN") << tr("GMSH_COMPOUND_NAME_COLUMN");
+    myCompoundTable->setHorizontalHeaderLabels(compoundHeaders);
+    myCompoundTable->horizontalHeader()->hideSection(0);
+    myCompoundTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    myCompoundTable->resizeColumnToContents(1);
+    myCompoundTable->setAlternatingRowColors(true);
+    myCompoundTable->verticalHeader()->hide();
 
-  QPushButton* addCompoundButton = new QPushButton(tr("GMSH_COMPOUND_ADD"), compoundGroup);
-  compoundLayout->addWidget(addCompoundButton, 1, 1, 1, 1);
-  QFrame *line2 = new QFrame(compoundGroup);
+    QPushButton* addCompoundButton = new QPushButton(tr("GMSH_COMPOUND_ADD"), compoundGroup);
+    compoundLayout->addWidget(addCompoundButton, 1, 1, 1, 1);
+    QFrame *line2 = new QFrame(compoundGroup);
 
-  line2->setFrameShape(QFrame::HLine);
-  line2->setFrameShadow(QFrame::Sunken);
-  compoundLayout->addWidget(line2, 2, 1, 1, 1);
+    line2->setFrameShape(QFrame::HLine);
+    line2->setFrameShadow(QFrame::Sunken);
+    compoundLayout->addWidget(line2, 2, 1, 1, 1);
 
-  QPushButton* removeButton = new QPushButton(tr("GMSH_COMPOUND_REMOVE"), compoundGroup);
-  compoundLayout->addWidget(removeButton, 3, 1, 1, 1);
+    QPushButton* removeButton = new QPushButton(tr("GMSH_COMPOUND_REMOVE"), compoundGroup);
+    compoundLayout->addWidget(removeButton, 3, 1, 1, 1);
 
-  connect( addCompoundButton, SIGNAL(clicked()), this, SLOT(onAddCompound()));
-  connect( removeButton, SIGNAL(clicked()), this, SLOT(onRemoveCompound()));
-
+    connect(addCompoundButton, SIGNAL(clicked()), this, SLOT(onAddCompound()));
+    connect(removeButton, SIGNAL(clicked()), this, SLOT(onRemoveCompound()));
+  }
   return fr;
 }
 
@@ -385,16 +402,21 @@ void GMSHPluginGUI_HypothesisCreator::retrieveParams() const
 
   if( myName )
     myName->setText( data.myName );
-  my2DAlgo->setCurrentIndex( data.my2DAlgo );
+  if (!myIs3D)
+    my2DAlgo->setCurrentIndex( data.my2DAlgo );
   if ( !myIs2D )
     my3DAlgo->setCurrentIndex( data.my3DAlgo );
-  myRecomb2DAlgo->setCurrentIndex( data.myRecomb2DAlgo );
+  if(!myIs3D)
+    myRecomb2DAlgo->setCurrentIndex( data.myRecomb2DAlgo );
   if ( myRecombineAll )
     myRecombineAll->setChecked( data.myRecombineAll );
   if ( mySubdivAlgo )
   mySubdivAlgo->setCurrentIndex( data.mySubdivAlgo );
-  myRemeshAlgo->setCurrentIndex( data.myRemeshAlgo);
-  myRemeshPara->setCurrentIndex( data.myRemeshPara);
+  if (!myIs3D)
+  {
+    myRemeshAlgo->setCurrentIndex(data.myRemeshAlgo);
+    myRemeshPara->setCurrentIndex(data.myRemeshPara);
+  }
   if(data.mySmouthStepsVar.isEmpty())
     mySmouthSteps->setValue( data.mySmouthSteps );
   else
@@ -425,19 +447,22 @@ void GMSHPluginGUI_HypothesisCreator::retrieveParams() const
   GMSHPluginGUI_HypothesisCreator* that = (GMSHPluginGUI_HypothesisCreator*)this;
   that->updateWidgets();
 
-  GeomSelectionTools* geomSelectionTools = that->getGeomSelectionTools();
-  for (QSet<QString>::const_iterator i = myCompoundSet.begin(); i != myCompoundSet.end(); ++i)
+  if (!myIs3D)
   {
-    const QString entry = *i;
-    std::string shapeName = geomSelectionTools->getNameFromEntry(entry.toStdString());
-    int row = myCompoundTable->rowCount();
-    myCompoundTable->setRowCount(row+1);
-    myCompoundTable->setItem(row, 0, new QTableWidgetItem(entry));
-    myCompoundTable->item(row, 0)->setFlags(0);
-    myCompoundTable->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(shapeName)));
-    myCompoundTable->item(row, 1)->setFlags(Qt::ItemIsSelectable|Qt::ItemIsEnabled);
+    GeomSelectionTools* geomSelectionTools = that->getGeomSelectionTools();
+    for (QSet<QString>::const_iterator i = myCompoundSet.begin(); i != myCompoundSet.end(); ++i)
+    {
+      const QString entry = *i;
+      std::string shapeName = geomSelectionTools->getNameFromEntry(entry.toStdString());
+      int row = myCompoundTable->rowCount();
+      myCompoundTable->setRowCount(row + 1);
+      myCompoundTable->setItem(row, 0, new QTableWidgetItem(entry));
+      myCompoundTable->item(row, 0)->setFlags(0);
+      myCompoundTable->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(shapeName)));
+      myCompoundTable->item(row, 1)->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+    }
+    myCompoundTable->resizeColumnToContents(1);
   }
-  myCompoundTable->resizeColumnToContents(1);
 }
 
 QString GMSHPluginGUI_HypothesisCreator::storeParams() const
@@ -509,15 +534,19 @@ bool GMSHPluginGUI_HypothesisCreator::storeParamsToHypo( const GmshHypothesisDat
   {
     if( isCreation() )
       SMESH::SetName( SMESH::FindSObject( h ), h_data.myName.toLatin1().data() );
-
-    h->Set2DAlgo( h_data.my2DAlgo );
+    if( !myIs3D )
+      h->Set2DAlgo( h_data.my2DAlgo );
     if ( !myIs2D )
       h->Set3DAlgo( h_data.my3DAlgo );
-    h->SetRecomb2DAlgo( h_data.myRecomb2DAlgo );
+    if (!myIs3D)
+      h->SetRecomb2DAlgo( h_data.myRecomb2DAlgo );
     h->SetRecombineAll( h_data.myRecombineAll );
     h->SetSubdivAlgo( h_data.mySubdivAlgo );
-    h->SetRemeshAlgo( h_data.myRemeshAlgo );
-    h->SetRemeshPara( h_data.myRemeshPara );
+    if (!myIs3D)
+    {
+      h->SetRemeshAlgo(h_data.myRemeshAlgo);
+      h->SetRemeshPara(h_data.myRemeshPara);
+    }
     h->SetSmouthSteps( h_data.mySmouthSteps );
     h->SetSizeFactor( h_data.mySizeFactor );
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10
@@ -567,14 +596,18 @@ bool GMSHPluginGUI_HypothesisCreator::storeParamsToHypo( const GmshHypothesisDat
 bool GMSHPluginGUI_HypothesisCreator::readParamsFromWidgets( GmshHypothesisData& h_data ) const
 {
   h_data.myName           = myName ? myName->text() : "";
-  h_data.my2DAlgo         = my2DAlgo->currentIndex();
+  if(my2DAlgo)
+    h_data.my2DAlgo       = my2DAlgo->currentIndex();
   if (my3DAlgo)
     h_data.my3DAlgo       = my3DAlgo->currentIndex();
-  h_data.myRecomb2DAlgo   = myRecomb2DAlgo->currentIndex();
+  if(myRecomb2DAlgo)
+    h_data.myRecomb2DAlgo   = myRecomb2DAlgo->currentIndex();
   h_data.myRecombineAll   = myRecombineAll->isChecked();
   h_data.mySubdivAlgo     = mySubdivAlgo->currentIndex();
-  h_data.myRemeshAlgo     = myRemeshAlgo->currentIndex();
-  h_data.myRemeshPara     = myRemeshPara->currentIndex();
+  if(myRemeshAlgo)
+    h_data.myRemeshAlgo   = myRemeshAlgo->currentIndex();
+  if(myRemeshPara)
+    h_data.myRemeshPara   = myRemeshPara->currentIndex();
   h_data.mySmouthSteps    = mySmouthSteps->value();
   h_data.mySizeFactor     = mySizeFactor->value();
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=10

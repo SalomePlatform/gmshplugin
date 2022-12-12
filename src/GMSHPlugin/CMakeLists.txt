@@ -67,12 +67,16 @@ SET(_link_LIBRARIES
 SET(GMSHEngine_HEADERS
   GMSHPlugin_GMSH_2D.hxx
   GMSHPlugin_GMSH_2D_i.hxx
+  GMSHPlugin_GMSH_3D.hxx
+  GMSHPlugin_GMSH_3D_i.cxx
   GMSHPlugin_GMSH.hxx
   GMSHPlugin_GMSH_i.hxx
   GMSHPlugin_Hypothesis.hxx
   GMSHPlugin_Hypothesis_i.hxx
   GMSHPlugin_Hypothesis_2D.hxx
   GMSHPlugin_Hypothesis_2D_i.hxx
+  GMSHPlugin_Hypothesis_3D.hxx
+  GMSHPlugin_Hypothesis_3D_i.hxx
   GMSHPlugin_Mesher.hxx
   GMSHPlugin_Defs.hxx
 )
@@ -83,12 +87,16 @@ SET(GMSHEngine_HEADERS
 SET(GMSHEngine_SOURCES
   GMSHPlugin_GMSH_2D.cxx
   GMSHPlugin_GMSH_2D_i.cxx
+  GMSHPlugin_GMSH_3D.cxx
+  GMSHPlugin_GMSH_3D_i.cxx
   GMSHPlugin_GMSH.cxx
   GMSHPlugin_GMSH_i.cxx
   GMSHPlugin_Hypothesis.cxx
   GMSHPlugin_Hypothesis_i.cxx
   GMSHPlugin_Hypothesis_2D.cxx
   GMSHPlugin_Hypothesis_2D_i.cxx
+  GMSHPlugin_Hypothesis_3D.cxx
+  GMSHPlugin_Hypothesis_3D_i.cxx
   GMSHPlugin_Mesher.cxx
   GMSHPlugin_i.cxx
 )

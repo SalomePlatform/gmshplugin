@@ -58,15 +58,7 @@ from salome.smesh import smeshBuilder
 smesh = smeshBuilder.New()
 
 Mesh_1 = smesh.Mesh(Fuse_1_1)
-GMSH_2D = Mesh_1.Triangle(algo=smeshBuilder.GMSH_2D)
-Gmsh_Parameters = GMSH_2D.Parameters()
-Gmsh_Parameters.Set2DAlgo( 0 )
-Gmsh_Parameters.SetMaxSize( 10 )
-Gmsh_Parameters.SetMinSize( 5 )
-Gmsh_Parameters.SetIs2d( 1 )
-Gmsh_Parameters.SetCompoundOnShape(Group_1_1)
-isDone = Mesh_1.Compute()
-GMSH = Mesh_1.Tetrahedron(algo=smeshBuilder.GMSH_3D)
+GMSH = Mesh_1.Tetrahedron(algo=smeshBuilder.GMSH)
 Gmsh_Parameters = GMSH.Parameters()
 Gmsh_Parameters.Set2DAlgo( 0 )
 Gmsh_Parameters.SetMinSize( 0.5 )
@@ -74,6 +66,8 @@ Gmsh_Parameters.SetMaxSize( 1 )
 Gmsh_Parameters.SetIs2d( 0 )
 Gmsh_Parameters.SetCompoundOnShape(Group_1_1)
 Group_1_2 = Mesh_1.GroupOnGeom(Group_1_1,'Group_1',SMESH.FACE)
+#isDone = Mesh_1.Compute()
+#[ Group_1_2 ] = Mesh_1.GetGroups()
 
 errorMsg=''
 okMsg=''

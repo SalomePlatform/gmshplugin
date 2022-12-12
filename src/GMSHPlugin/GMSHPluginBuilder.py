@@ -34,8 +34,9 @@ except ImportError:
     pass
 
 # Types of algorithms
-GMSH     = "GMSH"
-GMSH_2D  = "GMSH_2D"
+GMSH = "GMSH"
+GMSH_3D       = "GMSH_3D"
+GMSH_2D       = "GMSH_2D"
 
 ## Base of all GMSH algorithms.
 #
@@ -57,6 +58,8 @@ class GMSH_Algorithm(Mesh_Algorithm):
             hypType = "GMSH_Parameters_2D"
         elif self.algoType == GMSH:
             hypType = "GMSH_Parameters"
+        elif self.algoType == GMSH_3D:
+            hypType = "GMSH_Parameters_3D"
 
         if self.params and self.params.GetName() != hypType:
             self.mesh.RemoveHypothesis( self.params, self.geom )
@@ -73,3 +76,12 @@ class GMSH_2D_Algorithm(GMSH_Algorithm):
     ## Private constructor.
     def __init__(self, mesh, geom=0):
         GMSH_Algorithm.__init__(self, mesh, geom)
+
+class GMSH_3D_Algorithm(GMSH_Algorithm):
+    
+     meshMethod = "Tetrahedron"
+     algoType   = GMSH_3D
+
+     ## Private constructor.
+     def __init__(self, mesh, geom=0):
+         GMSH_Algorithm.__init__(self, mesh, geom)

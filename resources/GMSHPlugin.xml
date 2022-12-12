@@ -17,12 +17,16 @@
         label-id="Gmsh Parameters"
         icon-id="gmsh.png"
         dim="2"/>
+    <hypothesis type="GMSH_Parameters_3D"
+        label-id="Gmsh 3D Parameters"
+        icon-id="gmsh.png"
+        dim="3"/>
   </hypotheses>
   
   <algorithms>
 
     <algorithm type="GMSH"
-               label-id="Gmsh"
+               label-id="Gmsh 1D-2D-3D"
                icon-id="gmsh.png"
                hypos="GMSH_Parameters"
                dim="3"
@@ -32,9 +36,9 @@
         <hypo>GMSH_Parameters=Parameters()</hypo>
       </python-wrap>
     </algorithm>
-  
+
     <algorithm type="GMSH_2D"
-               label-id="Gmsh"
+               label-id="Gmsh 2D"
                icon-id="gmsh.png"
                hypos="GMSH_Parameters_2D"
                output="TRIA,QUAD"
@@ -45,7 +49,24 @@
         <hypo>GMSH_Parameters_2D=Parameters()</hypo>
       </python-wrap>
     </algorithm>
-    
+
+    <algorithm type="GMSH_3D"
+               label-id="Gmsh 3D"
+               icon-id="gmsh.png"
+               hypos="GMSH_Parameters_3D"
+               input="TRIA,QUAD"
+               output="TETRA,PYRAMID"
+               dim="3"
+               group-id ="1"
+               priority ="20"
+	             need-geom="false"
+               support-submeshes="true">
+      <python-wrap>
+        <algo>GMSH_3D=Tetrahedron(algo=smeshBuilder.GMSH_3D)</algo>
+        <hypo>GMSH_Parameters_3D=Parameters()</hypo>
+      </python-wrap>
+    </algorithm>
+
   </algorithms>
 </meshers-group>
 

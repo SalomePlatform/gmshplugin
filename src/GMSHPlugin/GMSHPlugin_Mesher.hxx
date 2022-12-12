@@ -68,7 +68,7 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
  public:
   // ---------- PUBLIC METHODS ----------
 
-  GMSHPlugin_Mesher (SMESH_Mesh* mesh, const TopoDS_Shape& aShape, bool is2D);
+  GMSHPlugin_Mesher (SMESH_Mesh* mesh, const TopoDS_Shape& aShape, bool is2D, bool is3D);
 
   void SetParameters(const GMSHPlugin_Hypothesis*          hyp);
 
@@ -77,6 +77,8 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   bool Evaluate(MapShapeNbElems& aResMap);
 
   static float DistBoundingBox(const SBoundingBox3d& bounds, const SPoint3& point);
+
+  void FillGMSHMesh();
 
  private:
   SMESH_Mesh*          _mesh;
@@ -93,6 +95,7 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   double               _minSize, _maxSize;
   bool                 _secondOrder, _useIncomplElem;
   bool                 _is2d;
+  bool                 _is3d;
   GModel*              _gModel;
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
   double               _maxThreads;

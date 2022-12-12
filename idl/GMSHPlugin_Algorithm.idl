@@ -39,6 +39,13 @@ module GMSHPlugin
   {
   };
 
+   /*!
+   * GMSHPlugin_GMSH_3D: interface of "Gmsh" algorithm
+   */
+  interface GMSHPlugin_GMSH_3D : SMESH::SMESH_3D_Algo
+  {
+  };
+
   /*!
    * GMSHPlugin_GMSH_2D: interface of "Gmsh_2D" algorithm
    */

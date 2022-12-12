@@ -32,7 +32,9 @@
 #include <SMESH_subMesh.hxx>
 #include <StdMeshers_FaceSide.hxx>
 #include <utilities.h>
+#include <StdMeshers_QuadToTriaAdaptor.hxx>
 
+#include <gmsh.h>
 #include <vector>
 #include <limits>
 
@@ -152,10 +154,12 @@ namespace
 
 GMSHPlugin_Mesher::GMSHPlugin_Mesher (SMESH_Mesh*         mesh,
                                       const TopoDS_Shape& aShape,
-                                      bool                is2D)
+                                      bool                is2D,
+                                      bool                is3D)
   : _mesh    (mesh),
     _shape   (aShape),
-    _is2d    (is2D)
+    _is2d    (is2D),
+    _is3d    (is3D)
 {
   // il faudra peut être mettre un truc par defaut si l'utilisateur ne rentre rien en para
   //defaultParameters();
@@ -230,10 +234,146 @@ void GMSHPlugin_Mesher::SetMaxThreadsGmsh()
 
 //================================================================================
 /*!
+ * \brief Initialize GMSH model
+ */
+ //================================================================================
+void GMSHPlugin_Mesher::FillGMSHMesh()
+{
+  gmsh::initialize();
+  gmsh::model::add("mesh");
+
+  SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
+
+  int aNbOfNodes = 0;
+  int aNbOfCurves = 0;
+  int aNbOfLines = 0;
+  std::vector<int> aTrinagle(3, 0);
+
+  const int invalid_ID = -1;
+
+  // typedef for maps
+  typedef map< const SMDS_MeshNode*, int, TIDCompare > TNodeToIDMap;
+  typedef TNodeToIDMap::value_type                     TN2ID;
+  typedef map<std::pair<int, int>, int> TLineToIDMap;
+  TNodeToIDMap aNodeToID;
+  TLineToIDMap aLineToID;
+
+  TopAbs_ShapeEnum aMainType = _mesh->GetShapeToMesh().ShapeType();
+  bool aCheckReverse = (aMainType == TopAbs_COMPOUND || aMainType == TopAbs_COMPSOLID);
+
+  SMESH_MesherHelper aHelper(*_mesh);
+  SMESH_ProxyMesh::Ptr aProxyMesh(new SMESH_ProxyMesh(*_mesh));
+  if (_mesh->NbQuadrangles() > 0)
+  {
+    StdMeshers_QuadToTriaAdaptor* Adaptor = new StdMeshers_QuadToTriaAdaptor;
+    Adaptor->Compute(*_mesh, _shape, aProxyMesh.get());
+    aProxyMesh.reset(Adaptor);
+  }
+
+  std::map<const SMDS_MeshElement*, bool, TIDCompare> listElements;
+  for (TopExp_Explorer exFa(_shape, TopAbs_FACE); exFa.More(); exFa.Next())
+  {
+    const TopoDS_Shape& aShapeFace = exFa.Current();
+    int faceID = meshDS->ShapeToIndex(aShapeFace);
+
+    bool isRev = false;
+    if (aCheckReverse && aHelper.NbAncestors(aShapeFace, *_mesh, _shape.ShapeType()) > 1)
+      // IsReversedSubMesh() can work wrong on strongly curved faces,
+      // so we use it as less as possible
+      isRev = aHelper.IsReversedSubMesh(TopoDS::Face(aShapeFace));
+
+    const SMESHDS_SubMesh* aSubMeshDSFace = aProxyMesh->GetSubMesh(aShapeFace);
+    if (!aSubMeshDSFace) continue;
+
+    SMDS_ElemIteratorPtr iteratorElem = aSubMeshDSFace->GetElements();
+    if (aHelper.IsQuadraticSubMesh(_shape) &&
+      dynamic_cast<const SMESH_ProxyMesh::SubMesh*>(aSubMeshDSFace))
+    {
+      // add medium nodes of proxy triangles to helper
+      while (iteratorElem->more())
+        aHelper.AddTLinks(static_cast<const SMDS_MeshFace*>(iteratorElem->next()));
+
+      iteratorElem = aSubMeshDSFace->GetElements();
+    }
+    while (iteratorElem->more()) // loop on elements on a geom face
+    {
+      // check mesh face
+      const SMDS_MeshElement* elem = iteratorElem->next();
+      if (!elem)
+        return;
+      if (elem->NbCornerNodes() != 3)
+        return;
+      listElements[elem] = isRev;
+    }
+  }
+
+  for (auto const& ls : listElements)
+  {
+    // Add nodes of triangles and triangles them-selves to netgen mesh
+    // add three nodes of 
+    bool hasDegen = false;
+    for (int iN = 0; iN < 3; ++iN)
+    {
+      const SMDS_MeshNode* aNode = ls.first->GetNode(iN);
+      const int shapeID = aNode->getshapeId();
+      if (aNode->GetPosition()->GetTypeOfPosition() == SMDS_TOP_EDGE &&
+        aHelper.IsDegenShape(shapeID))
+      {
+        // ignore all nodes on degeneraged edge and use node on its vertex instead
+        TopoDS_Shape vertex = TopoDS_Iterator(meshDS->IndexToShape(shapeID)).Value();
+        aNode = SMESH_Algo::VertexNode(TopoDS::Vertex(vertex), meshDS);
+        hasDegen = true;
+      }
+      int& ngID = aNodeToID.insert(TN2ID(aNode, invalid_ID)).first->second;
+      if (ngID == invalid_ID)
+      {
+        ngID = ++aNbOfNodes;
+        gmsh::model::occ::addPoint(aNode->X(), aNode->Y(), aNode->Z(), 1.e-2, ngID);
+      }
+      aTrinagle[ls.second ? 2 - iN : iN] = ngID;
+    }
+    // add triangle
+    if (hasDegen && (aTrinagle[0] == aTrinagle[1] ||
+      aTrinagle[0] == aTrinagle[2] ||
+      aTrinagle[2] == aTrinagle[1]))
+      continue;
+
+
+    std::vector<int> LinesID(3, 0);
+    for (int anIndex = 0; anIndex < 3; ++anIndex)
+    {
+      int aNextIndex = (anIndex + 1) % 3;
+      if (aLineToID.find({ aTrinagle[anIndex], aTrinagle[aNextIndex] }) == aLineToID.end()
+        && aLineToID.find({ aTrinagle[aNextIndex], aTrinagle[anIndex] }) == aLineToID.end())
+      {
+        LinesID[anIndex] = aLineToID.insert({ { aTrinagle[aNextIndex], aTrinagle[anIndex] }, ++aNbOfLines }).first->second;
+        gmsh::model::occ::addLine(aTrinagle[anIndex], aTrinagle[aNextIndex], LinesID[anIndex]);
+      }
+      else
+      {
+        LinesID[anIndex] = aLineToID.find({ aTrinagle[anIndex], aTrinagle[aNextIndex] })->second;
+        if (LinesID[anIndex] == 0)
+          LinesID[anIndex] = aLineToID.find({ aTrinagle[aNextIndex], aTrinagle[anIndex] })->second;
+
+      }
+    }
+    if (!aProxyMesh->IsTemporary(ls.first))
+      swap(aTrinagle[1], aTrinagle[2]);
+
+    int aTag = gmsh::model::occ::addCurveLoop(LinesID);
+  }
+
+  // Generate 1D and 2D mesh
+  _gModel->mesh( /*dim=*/ 1);
+  Set1DSubMeshes(_gModel);
+  _gModel->mesh( /*dim=*/ 2);
+}
+
+//================================================================================
+/*!
  * \brief Set Gmsh Options
  */
-//================================================================================
-
+ //================================================================================
 void GMSHPlugin_Mesher::SetGmshOptions()
 {
   MESSAGE("GMSHPlugin_Mesher::SetGmshOptions");
@@ -1132,30 +1272,40 @@ bool GMSHPlugin_Mesher::Compute()
   if (_compounds.size() > 0) CreateGmshCompounds();
   try
   {
-    //Msg::SetVerbosity(100);
-    //CTX::instance()->mesh.maxNumThreads1D=1;
 
-    HideComputedEntities( _gModel );
-
-    _gModel->mesh( /*dim=*/ 1 );
-
-    Set1DSubMeshes( _gModel );
-
-    //_gModel->writeUNV("/tmp/1D.unv", 1,0,0);
-    //CTX::instance()->mesh.maxNumThreads2D=1;
-
-    _gModel->mesh( /*dim=*/ 2 );
-
-    if ( !_is2d )
+    HideComputedEntities(_gModel);
+    if (_is3d)
     {
-      Set2DSubMeshes( _gModel );
+      FillGMSHMesh();
 
-      //CTX::instance()->mesh.maxNumThreads3D=1;
+      Set2DSubMeshes(_gModel);
 
-      _gModel->mesh( /*dim=*/ 3 );
+      _gModel->mesh( /*dim=*/ 3);
     }
-    RestoreVisibility( _gModel );
+    else
+    {
+      //Msg::SetVerbosity(100);
+      //CTX::instance()->mesh.maxNumThreads1D=1;
 
+      _gModel->mesh( /*dim=*/ 1);
+
+      Set1DSubMeshes(_gModel);
+
+      //_gModel->writeUNV("/tmp/1D.unv", 1,0,0);
+      //CTX::instance()->mesh.maxNumThreads2D=1;
+
+      _gModel->mesh( /*dim=*/ 2);
+
+      if (!_is2d)
+      {
+        Set2DSubMeshes(_gModel);
+
+        //CTX::instance()->mesh.maxNumThreads3D=1;
+
+        _gModel->mesh( /*dim=*/ 3);
+      }
+      RestoreVisibility(_gModel);
+    }
 #ifdef WITH_SMESH_CANCEL_COMPUTE
 
 #endif

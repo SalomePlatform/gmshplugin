@@ -25,8 +25,10 @@ SET(TUI_NAMES
   gmsh_triangulation_algorithms_for_square
 )
 SET(GUI_NAMES
+  gmsh_compound_mesh_1d_2d_3d
   gmsh_compound_mesh_2d
   gmsh_compound_mesh_3d
+  gmsh_mesh_3d
 )
 
 SET(TEST_NAMES ${TUI_NAMES} ${GUI_NAMES})

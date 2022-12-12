@@ -108,7 +108,7 @@ private:
  QCheckBox*        myUseIncomplElem;
  QCheckBox*        mySecondOrder;
  bool myIs2D;
-
+ bool myIs3D;
 
  QTableWidget* myCompoundTable;
  GeomSelectionTools* myGeomSelectionTools;

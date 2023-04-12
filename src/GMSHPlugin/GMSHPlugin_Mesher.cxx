@@ -329,6 +329,13 @@ void GMSHPlugin_Mesher::SetGmshOptions()
 **/
   ok = GmshSetOption("General", "NumThreads"            , _maxThreads )  ; // system default i.e. OMP_NUM_THREADS
   ASSERT(ok);
+#ifdef WIN32
+  if ( GMSHPlugin_Hypothesis::Algo3D::hxt == _algo3d ){
+    MESSAGE("GMSHPlugin_Mesher::SetGmshOptions: HXT algorithm is being used. Setting number of threads to 1.");
+    ok = GmshSetOption("Mesh", "MaxNumThreads3D"       , 1. );
+    ASSERT(ok);
+  } // hxt
+#endif
 #endif
 }
 

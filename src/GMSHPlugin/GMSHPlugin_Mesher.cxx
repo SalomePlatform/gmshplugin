@@ -34,6 +34,11 @@
 #include <utilities.h>
 #include <StdMeshers_QuadToTriaAdaptor.hxx>
 
+//CAS
+#include <BRep_Tool.hxx>
+#include <GeomAPI_ProjectPointOnCurve.hxx>
+#include <gp_Pnt.hxx>
+
 #include <gmsh.h>
 #include <vector>
 #include <limits>
@@ -737,7 +742,33 @@ void GMSHPlugin_Mesher::FillSMesh()
         if ( isCompound )
           topoEdge = TopoDS::Edge( getShapeAtPoint( v->point(), topoEdges ));
 
-        meshDS->SetNodeOnEdge( node, topoEdge );
+        // Based on BLSURFPlugin_BLSURF
+        gp_Pnt point3D( v->x(),v->y(),v->z() );
+        Standard_Real p0 = 0.0;
+        Standard_Real p1 = 1.0;
+        TopLoc_Location loc;
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(topoEdge, loc, p0, p1);
+        
+        if ( !curve.IsNull() )
+        {
+          if ( !loc.IsIdentity() ) 
+            point3D.Transform( loc.Transformation().Inverted() );
+
+          GeomAPI_ProjectPointOnCurve proj(point3D, curve, p0, p1);
+
+          double pa = 0.;
+          if ( proj.NbPoints() > 0 )
+            pa = (double)proj.LowerDistanceParameter();
+
+          meshDS->SetNodeOnEdge( node, topoEdge, pa );  
+        }
+        else
+        {            
+          meshDS->SetNodeOnEdge( node, topoEdge );
+        }                   
+        //END on BLSURFPlugin_BLSURF
+
+
         _nodeMap.insert({ v, node });
       }
     }
@@ -772,7 +803,31 @@ void GMSHPlugin_Mesher::FillSMesh()
         if ( verts[j]->onWhat()->getVisibility() == 0 )
         {
           SMDS_MeshNode *node = meshDS->AddNode(verts[j]->x(),verts[j]->y(),verts[j]->z() );
-          meshDS->SetNodeOnEdge( node, topoEdge );
+          
+          gp_Pnt point3D( verts[j]->x(),verts[j]->y(),verts[j]->z() );
+          Standard_Real p0 = 0.0;
+          Standard_Real p1 = 1.0;
+          TopLoc_Location loc;
+          Handle(Geom_Curve) curve = BRep_Tool::Curve(topoEdge, loc, p0, p1);
+          
+          if ( !curve.IsNull() )
+          {
+            if ( !loc.IsIdentity() ) 
+              point3D.Transform( loc.Transformation().Inverted() );
+
+            GeomAPI_ProjectPointOnCurve proj(point3D, curve, p0, p1);
+
+            double pa = 0.;
+            if ( proj.NbPoints() > 0 )
+              pa = (double)proj.LowerDistanceParameter();
+
+            meshDS->SetNodeOnEdge( node, topoEdge, pa );  
+          }
+          else
+          {            
+            meshDS->SetNodeOnEdge( node, topoEdge );
+          }                   
+          
           verts[j]->setEntity(gEdge);
           _nodeMap.insert({ verts[j], node });
         }

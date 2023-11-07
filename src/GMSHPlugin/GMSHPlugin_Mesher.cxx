@@ -43,6 +43,7 @@
 #include <vector>
 #include <limits>
 
+#include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 
@@ -241,6 +242,236 @@ void GMSHPlugin_Mesher::SetMaxThreadsGmsh()
 }
 #endif
 
+
+//================================================================================
+/*!
+ * \brief Check that the passed nodes are all IN the face
+ * \param element the element
+ * \param F the geom Face
+ * \param uvValues a vector of size elem->NbCornerNodes() to save the uv coordinate points on the face
+ * \return true if all the nodes are IN the face
+ */
+ //================================================================================
+bool GMSHPlugin_Mesher::IsAllNodesInSameFace( const SMDS_MeshElement* element, const TopoDS_Face& F, 
+                                                std::vector<gp_XY>& uvValues )
+{
+  Handle(ShapeAnalysis_Surface) sprojector = new ShapeAnalysis_Surface( BRep_Tool::Surface( F ));
+  double tol = BRep_Tool::MaxTolerance( F, TopAbs_FACE );
+  int nbN = element->NbCornerNodes();
+  gp_Pnt surfPnt(0,0,0);
+  for ( int i = 0; i < nbN; ++i )
+  {
+    SMESH_NodeXYZ nXYZ( element->GetNode( i ) );
+    gp_XY uv = sprojector->ValueOfUV( nXYZ, tol ).XY();
+    surfPnt = sprojector->Value( uv );
+    double dist = surfPnt.Distance( nXYZ );
+    if ( dist > tol )
+      return false;
+    else
+      uvValues[ i ] = uv;
+  }
+  return true;
+}
+
+//================================================================================
+/*!
+ * \brief Associate mesh elements to geometrical faces.
+ * \param the list of elements
+ * \return a map between faces (incremental order) and mesh elements found to be placed on the face
+ */
+ //================================================================================
+std::map<int,std::vector<std::tuple<smIdType,bool,std::vector<gp_XY>>>> GMSHPlugin_Mesher::AssociateElementsToFaces( std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements )
+{
+  // Map faces to elementId and uv of nodes.
+  // Index by face id
+  // Index vector with element smIdType, [ gp_XY_0, gp_XY_1, gp_XY_2 ]
+  std::map<int,std::vector<std::tuple<smIdType,bool,std::vector<gp_XY>>>> elementToFaceMap;
+  SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
+  SMDS_ElemIteratorPtr iteratorElem = meshDS->elementsIterator(SMDSAbs_Face);
+  for ( auto const& [elem, IsReverse] : listElements ) // loop on elements on a geom face
+  {  
+    int nbN = elem->NbCornerNodes();
+    std::vector<gp_XY> uvValues(nbN);
+    if ( nbN > 4 /*this restriction might be eliminated. Have to adapt FillGeomMapMeshUsing2DMeshIterator function too */)
+      throw std::string("Polygon sub-meshes not supported");
+
+    int faceId = 1;
+    for( GModel::fiter it = _gModel->firstFace(); it != _gModel->lastFace(); ++it )
+    {
+      GFace *gFace = *it;
+      TopoDS_Face topoFace = *((TopoDS_Face*)gFace->getNativePtr());
+      if ( IsAllNodesInSameFace( elem, topoFace, uvValues ) )
+      {
+        elementToFaceMap[ faceId ].push_back( std::make_tuple( elem->GetID(), IsReverse, uvValues ) );     
+        break;
+      }
+      faceId++;
+    }
+  }
+  return elementToFaceMap;
+}
+
+//================================================================================
+/*!
+ * \brief Add the elements found associated to the face as gmsh elements
+ */
+ //================================================================================
+void GMSHPlugin_Mesher::Set2DMeshes( std::vector< const SMDS_MeshNode* >& nodeVec, std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements )
+{
+  std::map< const SMDS_MeshNode* , const MVertex * > nodes2mvertMap;
+  SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
+  auto elementToFaceMap = AssociateElementsToFaces( listElements );
+  int faceId = 1;
+  std::vector<MVertex *> mVertices;
+
+  for(GModel::fiter it = _gModel->firstFace(); it != _gModel->lastFace(); ++it)
+  {
+    GFace *gFace = *it;
+    gFace->deleteMesh();
+
+    auto element2uv = elementToFaceMap.find( faceId )->second;
+
+    const int numberOfEntries = element2uv.size();
+    
+    for (int el = 0; el < numberOfEntries; el++)
+    {
+      const smIdType elementId      = std::get<0>( element2uv[ el ] ); // smesh element id
+      bool isReverse                = std::get<1>( element2uv[ el ] );
+      const SMDS_MeshElement* elem = meshDS->FindElement( elementId );
+
+      int nbN = elem->NbCornerNodes();
+      mVertices.resize( nbN );
+
+      for ( int i = 0; i < nbN; ++i )
+      {
+        const SMDS_MeshNode* n = elem->GetNode( i );
+        MVertex *           mv = nullptr;
+        auto n2v = nodes2mvertMap.find( n );
+        if ( n2v != nodes2mvertMap.end() )
+        {
+          mv = const_cast< MVertex*>( n2v->second );
+        }
+        else
+        {
+          if ( n->GetPosition()->GetDim() < 2 )
+            throw std::string("Wrong mapping of edge nodes to GMSH nodes");
+          SMESH_NodeXYZ xyz = n;
+          gp_XY uv = std::get<2>(element2uv[ el ])[ i ];
+          mv = new MFaceVertex( xyz.X(), xyz.Y(), xyz.Z(), gFace, uv.X(), uv.Y() );
+          gFace->mesh_vertices.push_back( mv );
+          nodes2mvertMap.insert({ n, mv });
+          _nodeMap.insert      ({ mv, n });
+          _premeshednodeMap.insert({ mv, n });
+        }
+        mVertices[ i ] = mv;
+      }
+       // create GMSH mesh faces
+      switch ( nbN ) {
+      case 3:
+        if ( isReverse )
+          gFace->triangles.push_back (new MTriangle(mVertices[0], mVertices[2], mVertices[1]));
+        else
+          gFace->triangles.push_back (new MTriangle(mVertices[0], mVertices[1], mVertices[2]));
+        break;
+      case 4:
+        if ( isReverse )
+          gFace->quadrangles.push_back (new MQuadrangle(mVertices[0], mVertices[3],
+                                                        mVertices[2], mVertices[1]));
+        else
+          gFace->quadrangles.push_back (new MQuadrangle(mVertices[0], mVertices[1],
+                                                        mVertices[2], mVertices[3]));
+        break;
+      default:;
+      }
+    }        
+    faceId++; // face counter
+  } // iterator in the face
+
+  // Fill the node 
+  nodeVec.resize( nodes2mvertMap.size() + 1, 0 );
+  int count = 1;
+  for (auto k : nodes2mvertMap )
+  {
+    nodeVec[ count ] = k.first; // Index the node id to the smesh node itself        
+    count++;
+  }
+}
+
+
+//================================================================================
+/*!
+ * \brief Initialize GMSH model with mesh elements as geometry objects. 
+ *          Nodes are vertexes and element connections are geom lines
+ */
+ //================================================================================
+void GMSHPlugin_Mesher::FillGeomMapMeshUsing2DMeshIterator( std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements )
+{
+  gmsh::initialize();
+  gmsh::model::add("mesh");
+    // typedef for maps
+  typedef map< const SMDS_MeshNode*, int, TIDCompare > TNodeToIDMap;
+  typedef TNodeToIDMap::value_type                     TN2ID;
+  typedef map<std::pair<int, int>, int> TLineToIDMap;
+  TNodeToIDMap aNodeToID;
+  TLineToIDMap aLineToID;
+  
+  int aNbOfNodes = 0;
+  int aNbOfLines = 0;
+
+  const int invalid_ID = -1;
+  std::vector<int> aTrinagle( 3, 0 );
+  
+  // Playing around with SMESHDS_Mesh structure
+  SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
+
+  for ( auto const& [elem, IsReverse] : listElements ) // loop on elements on a geom face
+  {
+    if ( elem->NbCornerNodes() != 3 )
+      return;
+
+    for (int iN = 0; iN < 3; ++iN)
+    {
+      const SMDS_MeshNode* aNode = elem->GetNode(iN);
+      
+      int& ngID = aNodeToID.insert(TN2ID(aNode, invalid_ID)).first->second;
+      if (ngID == invalid_ID)
+      {
+        ngID = ++aNbOfNodes;
+        gmsh::model::occ::addPoint(aNode->X(), aNode->Y(), aNode->Z(), 1.e-2, ngID);
+      }
+
+      aTrinagle[ IsReverse ? 2 - iN : iN ] = ngID;
+    }
+    // add triangle
+    if ((aTrinagle[0] == aTrinagle[1] ||
+        aTrinagle[0] == aTrinagle[2] ||
+        aTrinagle[2] == aTrinagle[1]))
+      continue;
+    
+    std::vector<int> LinesID(3, 0);
+    for (int anIndex = 0; anIndex < 3; ++anIndex)
+    {
+      int aNextIndex = (anIndex + 1) % 3;
+      if (aLineToID.find({ aTrinagle[anIndex], aTrinagle[aNextIndex] }) == aLineToID.end()
+        && aLineToID.find({ aTrinagle[aNextIndex], aTrinagle[anIndex] }) == aLineToID.end())
+      {
+        LinesID[anIndex] = aLineToID.insert({ { aTrinagle[aNextIndex], aTrinagle[anIndex] }, ++aNbOfLines }).first->second;
+        gmsh::model::occ::addLine(aTrinagle[anIndex], aTrinagle[aNextIndex], LinesID[anIndex]);
+      }
+      else
+      {
+        LinesID[anIndex] = aLineToID.find({ aTrinagle[anIndex], aTrinagle[aNextIndex] })->second;
+        if (LinesID[anIndex] == 0)
+          LinesID[anIndex] = aLineToID.find({ aTrinagle[aNextIndex], aTrinagle[anIndex] })->second;
+
+      }
+    }
+    // if (!aProxyMesh->IsTemporary(ls.first))
+    //   swap(aTrinagle[1], aTrinagle[2]);
+    gmsh::model::occ::addCurveLoop(LinesID);
+  }
+}
+
 //================================================================================
 /*!
  * \brief Initialize GMSH model
@@ -254,7 +485,6 @@ void GMSHPlugin_Mesher::FillGMSHMesh()
   SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
 
   int aNbOfNodes = 0;
-  int aNbOfCurves = 0;
   int aNbOfLines = 0;
   std::vector<int> aTrinagle(3, 0);
 
@@ -284,7 +514,6 @@ void GMSHPlugin_Mesher::FillGMSHMesh()
   {
     const TopoDS_Shape& aShapeFace = exFa.Current();
     int faceID = meshDS->ShapeToIndex(aShapeFace);
-
     bool isRev = false;
     if (aCheckReverse && aHelper.NbAncestors(aShapeFace, *_mesh, _shape.ShapeType()) > 1)
       // IsReversedSubMesh() can work wrong on strongly curved faces,
@@ -292,8 +521,8 @@ void GMSHPlugin_Mesher::FillGMSHMesh()
       isRev = aHelper.IsReversedSubMesh(TopoDS::Face(aShapeFace));
 
     const SMESHDS_SubMesh* aSubMeshDSFace = aProxyMesh->GetSubMesh(aShapeFace);
-    if (!aSubMeshDSFace) continue;
-
+    if (!aSubMeshDSFace) 
+      continue;
     SMDS_ElemIteratorPtr iteratorElem = aSubMeshDSFace->GetElements();
     if (aHelper.IsQuadraticSubMesh(_shape) &&
       dynamic_cast<const SMESH_ProxyMesh::SubMesh*>(aSubMeshDSFace))
@@ -344,8 +573,8 @@ void GMSHPlugin_Mesher::FillGMSHMesh()
     // add triangle
     if (hasDegen && (aTrinagle[0] == aTrinagle[1] ||
       aTrinagle[0] == aTrinagle[2] ||
-      aTrinagle[2] == aTrinagle[1]))
-        continue;
+      aTrinagle[2] == aTrinagle[1]))      
+        continue;    
 
 
     std::vector<int> LinesID(3, 0);
@@ -369,7 +598,7 @@ void GMSHPlugin_Mesher::FillGMSHMesh()
     if (!aProxyMesh->IsTemporary(ls.first))
       swap(aTrinagle[1], aTrinagle[2]);
 
-    int aTag = gmsh::model::occ::addCurveLoop(LinesID);
+    gmsh::model::occ::addCurveLoop(LinesID);
   }
 
   // Generate 1D and 2D mesh
@@ -633,6 +862,22 @@ const SMDS_MeshNode* GMSHPlugin_Mesher::Node( const MVertex* v )
 
   return nullptr;
 }
+
+//================================================================================
+/*!
+ * \brief Get a node by a GMSH mesh vertex
+ */
+//================================================================================
+
+const SMDS_MeshNode* GMSHPlugin_Mesher::PremeshedNode( const MVertex* v )
+{
+  std::map< const MVertex *, const SMDS_MeshNode* >::iterator v2n = _premeshednodeMap.find( v );
+  if ( v2n != _premeshednodeMap.end() )
+    return v2n->second;
+
+  return nullptr;
+}
+
 
 //================================================================================
 /*!
@@ -1308,6 +1553,66 @@ void  GMSHPlugin_Mesher::mymsg::operator()(std::string level, std::string msg)
   }
 }
 
+bool GMSHPlugin_Mesher::Compute3D( std::vector< const SMDS_MeshNode* >& nodeVec, std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements, bool addElements )
+{
+  MESSAGE("GMSHPlugin_Mesher::Compute3D");
+  int err = 0;
+  _maxThreads = 1;
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
+  _maxThreads = 1;
+#endif
+
+  char* argv[] = {"-noenv"};
+  GmshInitialize(1,argv);
+  SetGmshOptions();
+  _gModel = new GModel();
+  mymsg msg(_gModel);
+  GmshSetMessageHandler(&msg);
+
+  _gModel->importOCCShape((void*)&_shape);
+  try
+  {
+    HideComputedEntities( _gModel, true );   
+    // fill geometry with elements as geom objects
+    FillGeomMapMeshUsing2DMeshIterator( listElements );
+    Set2DMeshes( nodeVec, listElements );
+    _gModel->mesh( /*dim=*/ 3);
+  }
+  catch (std::string& str)
+  {
+    err = 1;
+    MESSAGE(str);
+  }
+  catch (...)
+  {
+    err = 1;
+    MESSAGE("Unrecoverable error during Generation of Gmsh Mesh");
+  }
+
+  if (!err)
+  {
+#if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
+    if (_compounds.size() > 0)
+      SetCompoundMeshVisibility();
+#endif
+  }
+  
+  if ( addElements )
+    FillSMesh();
+  MESSAGE("GMSHPlugin_Mesher::Compute3D:End");
+  return err;
+}
+
+void GMSHPlugin_Mesher::finalizeGModel()
+{
+  if ( _gModel )
+  {
+    GmshSetMessageHandler(nullptr);
+    delete _gModel;
+    GmshFinalize();
+  }
+}
+
 //=============================================================================
 /*!
  * Here we are going to use the GMSH mesher
@@ -1339,15 +1644,12 @@ bool GMSHPlugin_Mesher::Compute()
     if (_is3d)
     {
       FillGMSHMesh();
-
       Set2DSubMeshes(_gModel);
-
       _gModel->mesh( /*dim=*/ 3);
     }
     else
     {
       //CTX::instance()->mesh.maxNumThreads1D=1;
-
       _gModel->mesh( /*dim=*/ 1);
 
       Set1DSubMeshes(_gModel);
@@ -1601,7 +1903,7 @@ void GMSHPlugin_Mesher::Set2DSubMeshes( GModel* gModel )
  */
 //================================================================================
 
-void GMSHPlugin_Mesher::HideComputedEntities( GModel* gModel )
+void GMSHPlugin_Mesher::HideComputedEntities( GModel* gModel, bool hideAnyway )
 {
   CTX::instance()->mesh.meshOnlyVisible = true;
 
@@ -1617,7 +1919,7 @@ void GMSHPlugin_Mesher::HideComputedEntities( GModel* gModel )
         continue;
 
     TopoDS_Edge topoEdge = *((TopoDS_Edge*)gEdge->getNativePtr());
-    if ( HasSubMesh( topoEdge ))
+    if ( HasSubMesh( topoEdge ) || hideAnyway )
       gEdge->setVisibility(0);
   }
 
@@ -1634,7 +1936,7 @@ void GMSHPlugin_Mesher::HideComputedEntities( GModel* gModel )
         continue;
 
     TopoDS_Face topoFace = *((TopoDS_Face*)gFace->getNativePtr());
-    if ( HasSubMesh( topoFace ))
+    if ( HasSubMesh( topoFace ) || hideAnyway )
       gFace->setVisibility(0);
   }
 }

@@ -42,6 +42,7 @@
 #endif
 #include "MElement.h"
 
+#include <SMDS_MeshElement.hxx>
 #include "GMSHPlugin_Defs.hxx"
 #include "SMESH_Algo.hxx"
 
@@ -72,6 +73,9 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 
   void SetParameters(const GMSHPlugin_Hypothesis*          hyp);
 
+  bool Compute3D( std::vector< const SMDS_MeshNode* >& nodeVec, 
+                  std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements, 
+                  bool addElements );
   bool Compute();
 
   bool Evaluate(MapShapeNbElems& aResMap);
@@ -79,6 +83,11 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   static float DistBoundingBox(const SBoundingBox3d& bounds, const SPoint3& point);
 
   void FillGMSHMesh();
+  void FillGeomMapMeshUsing2DMeshIterator( std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements );
+  GModel* GetGModel(){ return _gModel;};
+  void finalizeGModel();
+  const SMDS_MeshNode* Node( const MVertex* v );
+  const SMDS_MeshNode* PremeshedNode( const MVertex* v );
 
  private:
   SMESH_Mesh*          _mesh;
@@ -108,18 +117,21 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   std::set<std::string> _compounds;
 
   std::map< const MVertex *, const SMDS_MeshNode* > _nodeMap;
-
-  const SMDS_MeshNode* Node( const MVertex* v );
+  std::map< const MVertex *, const SMDS_MeshNode* > _premeshednodeMap; // used for the SA version
   SMESHDS_SubMesh* HasSubMesh( const TopoDS_Shape& s );
 
   void SetGmshOptions();
   void CreateGmshCompounds();
   void FillSMesh();
-  void HideComputedEntities( GModel* gModel );
+  void HideComputedEntities( GModel* gModel, bool hideAnyway = false );
   void RestoreVisibility( GModel* gModel );
   void Set1DSubMeshes( GModel* );
   void Set2DSubMeshes( GModel* );
   void toPython( GModel* );
+  bool IsAllNodesInSameFace( const SMDS_MeshElement* triangle, const TopoDS_Face& F, std::vector<gp_XY>& uvValues );
+  std::map<int,std::vector<std::tuple<smIdType,bool,std::vector<gp_XY>>>> AssociateElementsToFaces( std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements );
+  void Set2DMeshes( std::vector< const SMDS_MeshNode* >& nodeVec, std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements );
+
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
   void SetMaxThreadsGmsh();
   void SetCompoundMeshVisibility();

@@ -20,7 +20,6 @@
 //
 #include "GMSHPlugin_GMSH_3D.hxx"
 #include "GMSHPlugin_Hypothesis_2D.hxx"
-#include "GMSHPlugin_Mesher.hxx"
 
 #include <SMESH_Gen.hxx>
 #include <SMESH_ControlsDef.hxx>
@@ -74,7 +73,6 @@ bool GMSHPlugin_GMSH_3D::CheckHypothesis
                           SMESH_Hypothesis::Hypothesis_Status& aStatus)
 {
   MESSAGE("GMSHPlugin_GMSH::CheckHypothesis");
-  
   _hypothesis = NULL;
   
   const list<const SMESHDS_Hypothesis*>& hyps = GetUsedHypothesis(aMesh, aShape);

@@ -26,6 +26,7 @@
 #include "GMSHPlugin_GMSH_i.hxx"
 #include "GMSHPlugin_GMSH_2D_i.hxx"
 #include "GMSHPlugin_GMSH_3D_i.hxx"
+#include "GMSHPlugin_GMSH_3D_Remote_i.hxx"
 
 template <class T> class GMSHPlugin_Creator_i:public HypothesisCreator_i<T>
 {
@@ -57,6 +58,8 @@ extern "C"
       aCreator = new GMSHPlugin_Creator_i<GMSHPlugin_GMSH_2D_i>;
     else if (strcmp(aHypName, "GMSH_3D") == 0)
       aCreator = new GMSHPlugin_Creator_i<GMSHPlugin_GMSH_3D_i>;
+    else if (strcmp(aHypName, "GMSH_3D_Remote") == 0)
+      aCreator = new GMSHPlugin_Creator_i<GMSHPlugin_GMSH_3D_Remote_i>;
     // Hypotheses
     else if (strcmp(aHypName, "GMSH_Parameters") == 0)
       aCreator = new GMSHPlugin_Creator_i<GMSHPlugin_Hypothesis_i>;

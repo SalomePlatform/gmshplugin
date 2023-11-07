@@ -22,6 +22,7 @@
 #define _GMSHPlugin_GMSH_3D_HXX_
 
 #include "GMSHPlugin_Defs.hxx"
+#include "GMSHPlugin_Mesher.hxx"
 
 #include "SMESH_Algo.hxx"
 #include "SMESH_subMesh.hxx"

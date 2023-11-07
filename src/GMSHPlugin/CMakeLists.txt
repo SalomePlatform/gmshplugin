@@ -29,9 +29,11 @@ INCLUDE_DIRECTORIES(
   ${MEDCOUPLING_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
   ${OMNIORB_INCLUDE_DIR}
-  ${GMSH_INCLUDE_DIRS}
   ${PROJECT_BINARY_DIR}/idl
 )
+
+#Avoid compilation warnings from gmsh headers
+INCLUDE_DIRECTORIES( SYSTEM  ${GMSH_INCLUDE_DIRS} )
 
 # additional preprocessor / compiler flags
 ADD_DEFINITIONS(  
@@ -68,6 +70,9 @@ SET(GMSHEngine_HEADERS
   GMSHPlugin_GMSH_2D.hxx
   GMSHPlugin_GMSH_2D_i.hxx
   GMSHPlugin_GMSH_3D.hxx
+  GMSHPlugin_GMSH_3D_SA.hxx
+  GMSHPlugin_GMSH_3D_Remote.hxx
+  GMSHPlugin_GMSH_3D_Remote_i.hxx
   GMSHPlugin_GMSH_3D_i.cxx
   GMSHPlugin_GMSH.hxx
   GMSHPlugin_GMSH_i.hxx
@@ -88,6 +93,9 @@ SET(GMSHEngine_SOURCES
   GMSHPlugin_GMSH_2D.cxx
   GMSHPlugin_GMSH_2D_i.cxx
   GMSHPlugin_GMSH_3D.cxx
+  GMSHPlugin_GMSH_3D_SA.cxx
+  GMSHPlugin_GMSH_3D_Remote.cxx
+  GMSHPlugin_GMSH_3D_Remote_i.cxx
   GMSHPlugin_GMSH_3D_i.cxx
   GMSHPlugin_GMSH.cxx
   GMSHPlugin_GMSH_i.cxx
@@ -99,6 +107,10 @@ SET(GMSHEngine_SOURCES
   GMSHPlugin_Hypothesis_3D_i.cxx
   GMSHPlugin_Mesher.cxx
   GMSHPlugin_i.cxx
+)
+
+SET(GmshRunner_SOURCES
+  GMSHPlugin_Runner_main.cxx
 )
 
 # --- scripts ---
@@ -114,6 +126,10 @@ SET(_bin_SCRIPTS
 ADD_LIBRARY(GMSHEngine ${GMSHEngine_SOURCES})
 TARGET_LINK_LIBRARIES(GMSHEngine ${_link_LIBRARIES} )
 INSTALL(TARGETS GMSHEngine EXPORT ${PROJECT_NAME}TargetGroup DESTINATION ${SALOME_INSTALL_LIBS})
+
+ADD_EXECUTABLE(GMSHPlugin_Runner ${GmshRunner_SOURCES})
+TARGET_LINK_LIBRARIES(GMSHPlugin_Runner ${_link_LIBRARIES} GMSHEngine )
+INSTALL(TARGETS GMSHPlugin_Runner EXPORT ${PROJECT_NAME}TargetGroup DESTINATION ${SALOME_INSTALL_BINS})
 
 INSTALL(FILES ${GMSHEngine_HEADERS} DESTINATION ${SALOME_INSTALL_HEADERS})
 

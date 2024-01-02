@@ -81,6 +81,7 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Hypothesis_i:
   void SetIs2d(CORBA::Boolean theIs2d);
   void SetVerbosityLevel(CORBA::Long theVerbLvl);
   CORBA::Long GetVerbosityLevel();
+  CORBA::Boolean GetIs2d();
 
   void SetCompoundOnShape(GEOM::GEOM_Object_ptr GeomObj);
   void SetCompoundOnEntry(const char* entry);

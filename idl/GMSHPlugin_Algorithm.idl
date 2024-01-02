@@ -111,6 +111,7 @@ module GMSHPlugin
 
     void SetVerbosityLevel(in long value);
     long GetVerbosityLevel();
+    boolean GetIs2d();
 
     void SetCompoundOnShape(in GEOM::GEOM_Object GeomObj);
     void SetCompoundOnEntry(in string entry);

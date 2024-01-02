@@ -269,6 +269,9 @@ void GMSHPlugin_Hypothesis_i::SetVerbosityLevel (CORBA::Long theValue)
 CORBA::Long GMSHPlugin_Hypothesis_i::GetVerbosityLevel()
 {
   return this->GetImpl()->GetVerbosityLevel();
+CORBA::Boolean GMSHPlugin_Hypothesis_i::GetIs2d()
+{
+  return this->GetImpl()->GetIs2d();
 }
 
 void GMSHPlugin_Hypothesis_i::SetCompoundOnShape(GEOM::GEOM_Object_ptr GeomObj)

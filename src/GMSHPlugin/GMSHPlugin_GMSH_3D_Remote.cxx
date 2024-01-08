@@ -50,13 +50,8 @@
 #include <QString>
 #include <QProcess>
 
-#ifdef WIN32
-#include <filesystem>
-namespace fs = std::filesystem;
-#else
 #include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
-#endif
 
 //=============================================================================
 /*!
@@ -180,11 +175,12 @@ void GMSHPlugin_GMSH_3D_Remote::exportElementOrientation(SMESH_Mesh& aMesh,
     std::ofstream df(output_file, ios::out|ios::binary);
     int size = elemOrientation.size();
     df.write((char*)&size, sizeof(int));
-    for(auto const& [id, orient]:elemOrientation)
+    for(std::map<vtkIdType,bool>::iterator iter = elemOrientation.begin(); iter != elemOrientation.end(); ++iter)
     {
-      df.write((char*)&id, sizeof(vtkIdType));
-      df.write((char*)&orient, sizeof(bool));
+      df.write((char*)&(iter->first), sizeof(vtkIdType));
+      df.write((char*)&(iter->second), sizeof(bool));
     }
+    
     df.close();
   }
 }

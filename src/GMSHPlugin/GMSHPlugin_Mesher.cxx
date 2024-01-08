@@ -286,10 +286,11 @@ std::map<int,std::vector<std::tuple<smIdType,bool,std::vector<gp_XY>>>> GMSHPlug
   // Index by face id
   // Index vector with element smIdType, [ gp_XY_0, gp_XY_1, gp_XY_2 ]
   std::map<int,std::vector<std::tuple<smIdType,bool,std::vector<gp_XY>>>> elementToFaceMap;
-  SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
-  SMDS_ElemIteratorPtr iteratorElem = meshDS->elementsIterator(SMDSAbs_Face);
-  for ( auto const& [elem, IsReverse] : listElements ) // loop on elements on a geom face
-  {  
+
+  for(std::map<const SMDS_MeshElement*, bool>::iterator iter = listElements.begin(); iter != listElements.end(); ++iter)
+  { 
+    const SMDS_MeshElement* elem = iter->first;
+    bool IsReverse = iter->second;
     int nbN = elem->NbCornerNodes();
     std::vector<gp_XY> uvValues(nbN);
     if ( nbN > 4 /*this restriction might be eliminated. Have to adapt FillGeomMapMeshUsing2DMeshIterator function too */)
@@ -421,11 +422,10 @@ void GMSHPlugin_Mesher::FillGeomMapMeshUsing2DMeshIterator( std::map<const SMDS_
   const int invalid_ID = -1;
   std::vector<int> aTrinagle( 3, 0 );
   
-  // Playing around with SMESHDS_Mesh structure
-  SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
-
-  for ( auto const& [elem, IsReverse] : listElements ) // loop on elements on a geom face
-  {
+  for(std::map<const SMDS_MeshElement*, bool>::iterator iter = listElements.begin(); iter != listElements.end(); ++iter)
+  { 
+    const SMDS_MeshElement* elem = iter->first;
+    bool IsReverse = iter->second;
     if ( elem->NbCornerNodes() != 3 )
       return;
 

@@ -107,6 +107,17 @@ enum RemeshPara
    rbfharmonic
   };
 
+enum VerbLvl
+  {
+   silent,
+   errors,
+   warnings,
+   direct,
+   information,
+   status,
+   debug
+  };
+
 
 GMSHPluginGUI_HypothesisCreator::GMSHPluginGUI_HypothesisCreator( const QString& theHypType )
   : SMESHGUI_GenericHypothesisCreator( theHypType )
@@ -217,7 +228,7 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   row++;
 
   mySubdivAlgo = 0;
-  
+
   aGroupLayout->addWidget(new QLabel(tr("GMSH_SUBDIV_ALGO"), GroupC1), row, 0);
   mySubdivAlgo = new QComboBox(GroupC1);
   QStringList typesSubdivAlgo;
@@ -287,6 +298,14 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   row++;
 
   connect( mySecondOrder, SIGNAL( toggled( bool ) ), this, SLOT( updateWidgets() ) );
+
+  aGroupLayout->addWidget( new QLabel( tr( "GMSH_VERB_LVL" ), GroupC1 ), row, 0 );
+  myVerbLvl = new QComboBox(GroupC1);
+  QStringList typesVerbLvl;
+  typesVerbLvl << tr("GMSH_SILENT") << tr("GMSH_ERRORS") << tr("GMSH_WARNINGS") << tr("GMSH_DIRECT") << tr("GMSH_INFORMATION") << tr("GMSH_STATUS") << tr("GMSH_DEBUG");
+  myVerbLvl->addItems(typesVerbLvl);
+  aGroupLayout->addWidget(myVerbLvl, row, 1);
+  row++;
 
   // Compounds
   if (!myIs3D)
@@ -411,7 +430,7 @@ void GMSHPluginGUI_HypothesisCreator::retrieveParams() const
   if ( myRecombineAll )
     myRecombineAll->setChecked( data.myRecombineAll );
   if ( mySubdivAlgo )
-  mySubdivAlgo->setCurrentIndex( data.mySubdivAlgo );
+    mySubdivAlgo->setCurrentIndex( data.mySubdivAlgo );
   if (!myIs3D)
   {
     myRemeshAlgo->setCurrentIndex(data.myRemeshAlgo);
@@ -443,6 +462,8 @@ void GMSHPluginGUI_HypothesisCreator::retrieveParams() const
     mySecondOrder->setChecked( data.mySecondOrder );
   if ( myUseIncomplElem )
     myUseIncomplElem->setChecked( data.myUseIncomplElem );
+  if (myVerbLvl)
+    myVerbLvl->setCurrentIndex(data.myVerbLvl);
 
   GMSHPluginGUI_HypothesisCreator* that = (GMSHPluginGUI_HypothesisCreator*)this;
   that->updateWidgets();
@@ -512,6 +533,7 @@ bool GMSHPluginGUI_HypothesisCreator::readParamsFromHypo( GmshHypothesisData& h_
   h_data.myMaxSizeVar = getVariableName("SetMaxSize");
   h_data.mySecondOrder = h->GetSecondOrder();
   h_data.myUseIncomplElem = h->GetUseIncomplElem();
+  h_data.myVerbLvl = (int) h->GetVerbosityLevel();
 
   GMSHPluginGUI_HypothesisCreator* that = (GMSHPluginGUI_HypothesisCreator*)this;
   GMSHPlugin::string_array_var myEntries = h->GetCompoundOnEntries();
@@ -564,6 +586,7 @@ bool GMSHPluginGUI_HypothesisCreator::storeParamsToHypo( const GmshHypothesisDat
     h->SetSecondOrder( h_data.mySecondOrder );
     h->SetUseIncomplElem( h_data.myUseIncomplElem );
     h->SetIs2d( myIs2D );
+    h->SetVerbosityLevel(h_data.myVerbLvl);
 
     QString mainEntry = getMainShapeEntry();
     for (QSet<QString>::const_iterator i = myCompoundSet.begin(); i != myCompoundSet.end(); ++i)
@@ -622,6 +645,7 @@ bool GMSHPluginGUI_HypothesisCreator::readParamsFromWidgets( GmshHypothesisData&
   h_data.myMaxSizeVar     = myMaxSize->text();
   h_data.mySecondOrder    = mySecondOrder->isChecked();
   h_data.myUseIncomplElem = myUseIncomplElem->isChecked();
+  h_data.myVerbLvl        = myVerbLvl->currentIndex();
 
   // ne semble pas utile dans la mesure ou myCompoundSet n'a pas besoin d'etre modifier
   /*

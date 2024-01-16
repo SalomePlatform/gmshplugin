@@ -87,7 +87,7 @@ public:
 
   void SetRecomb2DAlgo(Recomb2DAlgo theRecomb2DAlgo);
   Recomb2DAlgo GetRecomb2DAlgo() const { return _recomb2DAlgo; }
-  
+
   void SetRecombineAll(bool theRecombineAll);
   bool GetRecombineAll() const { return _recombineAll; }
 
@@ -97,7 +97,7 @@ public:
    allquads,
    allhexas
   };
-  
+
   void SetSubdivAlgo(SubdivAlgo theSubdivAlgo);
   SubdivAlgo GetSubdivAlgo() const { return _subdivAlgo; }
 
@@ -107,7 +107,7 @@ public:
    automaticR,
    automaticmetis
   };
-  
+
   void SetRemeshAlgo(RemeshAlgo theRemeshAlgo);
   RemeshAlgo GetRemeshAlgo() const { return _remeshAlgo; }
 
@@ -117,16 +117,16 @@ public:
    conformal,
    rbfharmonic
   };
-  
+
   void SetRemeshPara(RemeshPara theRemeshPara);
   RemeshPara GetRemeshPara() const { return _remeshPara; }
-  
+
   void SetSmouthSteps(double theSmouthSteps);
   double GetSmouthSteps() const { return _smouthSteps; }
-  
+
   void SetSizeFactor(double theSizeFactor);
   double GetSizeFactor() const { return _sizeFactor; }
-  
+
   void SetUseIncomplElem(bool theUseIncomplElem);
   bool GetUseIncomplElem() const { return _useIncomplElem; }
 
@@ -134,10 +134,10 @@ public:
   void SetMeshCurvatureSize(double theMeshCurvatureSize);
   double GetMeshCurvatureSize() const { return _meshCurvatureSize; }
 #endif
-  
+
   void SetMaxSize(double theSize);
   double GetMaxSize() const { return _maxSize; }
-  
+
   void SetMinSize(double theSize);
   double GetMinSize() const { return _minSize; }
 
@@ -146,12 +146,33 @@ public:
 
   void SetIs2d(bool theIs2d);
   bool GetIs2d() const { return _is2d; }
-  
+
+  // Verbosity info:
+  // 0: silent except for fatal errors
+  // 1: +errors
+  // 2: +warnings
+  // 3: +direct
+  // 4: +information
+  // 5: +status
+  // 99: +debug
+  enum Verbosity
+  {
+   silent,
+   errors,
+   warnings,
+   direct,
+   information,
+   status,
+   debug
+  };
+  void SetVerbosityLevel(Verbosity theLevel);
+  Verbosity GetVerbosityLevel() const { return _verbLvl; }
+
   typedef std::set<std::string> TCompound;
   void SetCompoundOnEntry(const std::string& entry);
   const TCompound& GetCompoundOnEntries() const { return _compounds; }
   void UnsetCompoundOnEntry(const std::string& entry);
-  
+
   // Persistence
   virtual std::ostream & SaveTo(std::ostream & save);
   virtual std::istream & LoadFrom(std::istream & load);
@@ -186,6 +207,7 @@ private:
   double        _minSize, _maxSize;
   bool          _secondOrder, _useIncomplElem;
   bool          _is2d;
+  Verbosity     _verbLvl;
   TCompound     _compounds;
 };
 

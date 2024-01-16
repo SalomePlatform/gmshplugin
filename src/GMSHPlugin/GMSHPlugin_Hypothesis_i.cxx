@@ -39,7 +39,7 @@ bool GMSHPlugin_Hypothesis_i::isToSetParameter<double>(double curValue,
 GMSHPlugin_Hypothesis_i::
 GMSHPlugin_Hypothesis_i (PortableServer::POA_ptr thePOA,
                            ::SMESH_Gen*            theGenImpl)
-  : SALOME::GenericObj_i( thePOA ), 
+  : SALOME::GenericObj_i( thePOA ),
     SMESH_Hypothesis_i( thePOA ),
     mySetMethodFlags(0)
 {
@@ -200,7 +200,7 @@ void GMSHPlugin_Hypothesis_i::SetRemeshPara (CORBA::Long theValue)
   if ( isToSetParameter( GetRemeshPara(), theValue, METH_SetRemeshPara ))
   {
     this->GetImpl()->SetRemeshPara((::GMSHPlugin_Hypothesis::RemeshPara)theValue);
-    SMESH::TPythonDump() << _this() << ".SetRemeshAlgo( " << theValue << " )";
+    SMESH::TPythonDump() << _this() << ".SetRemeshPara( " << theValue << " )";
   }
 }
 
@@ -257,6 +257,20 @@ void GMSHPlugin_Hypothesis_i::SetIs2d (CORBA::Boolean theValue)
   SMESH::TPythonDump() << _this() << ".SetIs2d( " << theValue << " )";
 }
 
+void GMSHPlugin_Hypothesis_i::SetVerbosityLevel (CORBA::Long theValue)
+{
+  if ( isToSetParameter( GetVerbosityLevel(), theValue, METH_SetVerbosityLevel ))
+  {
+    this->GetImpl()->SetVerbosityLevel((::GMSHPlugin_Hypothesis::Verbosity)theValue);
+    SMESH::TPythonDump() << _this() << ".SetVerbosityLevel( " << theValue << " )";
+  }
+}
+
+CORBA::Long GMSHPlugin_Hypothesis_i::GetVerbosityLevel()
+{
+  return this->GetImpl()->GetVerbosityLevel();
+}
+
 void GMSHPlugin_Hypothesis_i::SetCompoundOnShape(GEOM::GEOM_Object_ptr GeomObj)
 {
   string entry;
@@ -309,13 +323,13 @@ void GMSHPlugin_Hypothesis_i::UnsetCompoundOnEntry(const char* entry)
 
 //================================================================================
 /*!
- * \brief Verify whether hypothesis supports given entity type 
+ * \brief Verify whether hypothesis supports given entity type
   * \param type - dimension (see SMESH::Dimension enumeration)
   * \retval CORBA::Boolean - TRUE if dimension is supported, FALSE otherwise
- * 
+ *
  * Verify whether hypothesis supports given entity type (see SMESH::Dimension enumeration)
  */
-//================================================================================  
+//================================================================================
 CORBA::Boolean GMSHPlugin_Hypothesis_i::IsDimSupported( SMESH::Dimension type )
 {
   return type == SMESH::DIM_3D;

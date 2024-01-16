@@ -52,7 +52,7 @@ module GMSHPlugin
   interface GMSHPlugin_GMSH_2D : SMESH::SMESH_2D_Algo
   {
   };
-  
+
   /*!
    * GMSHPlugin_Hypothesis: interface of "GMSH parameters" hypothesis
    */
@@ -60,34 +60,34 @@ module GMSHPlugin
   {
     void Set2DAlgo(in long value);
     long Get2DAlgo();
-    
+
     void Set3DAlgo(in long value);
     long Get3DAlgo();
-    
+
     void SetRecomb2DAlgo(in long value);
     long GetRecomb2DAlgo();
-    
+
     void SetRecombineAll(in boolean value);
     boolean GetRecombineAll();
-    
+
     void SetSubdivAlgo(in long value);
     long GetSubdivAlgo();
-    
+
     void SetRemeshAlgo(in long value);
     long GetRemeshAlgo();
-    
+
     void SetRemeshPara(in long value);
     long GetRemeshPara();
-    
+
     void SetSmouthSteps(in double value);
     double GetSmouthSteps();
-    
+
     void SetSizeFactor(in double value);
     double GetSizeFactor();
 
     void SetMeshCurvatureSize(in double value);
     double GetMeshCurvatureSize();
-    
+
     void SetMaxSize(in double value);
     double GetMaxSize();
 
@@ -96,18 +96,21 @@ module GMSHPlugin
 
     void SetSecondOrder(in boolean value);
     boolean GetSecondOrder();
-    
+
     void SetUseIncomplElem(in boolean value);
     boolean GetUseIncomplElem();
-    
+
     void SetIs2d(in boolean value);
-    
+
+    void SetVerbosityLevel(in long value);
+    long GetVerbosityLevel();
+
     void SetCompoundOnShape(in GEOM::GEOM_Object GeomObj);
     void SetCompoundOnEntry(in string entry);
     void UnsetCompoundOnShape(in GEOM::GEOM_Object GeomObj);
     void UnsetCompoundOnEntry(in string entry);
     string_array GetCompoundOnEntries();
-    
+
   };
 
   /*!

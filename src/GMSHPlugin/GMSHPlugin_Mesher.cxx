@@ -192,7 +192,11 @@ void GMSHPlugin_Mesher::SetParameters(const GMSHPlugin_Hypothesis* hyp)
     _maxSize         = hyp->GetMaxSize();
     _secondOrder     = hyp->GetSecondOrder();
     _useIncomplElem  = hyp->GetUseIncomplElem();
+    _verbLvl         = hyp->GetVerbosityLevel();
     _compounds       = hyp->GetCompoundOnEntries();
+    // 6 in the enum corresponds to 99 in gmsh
+    if(_verbLvl == 6)
+      _verbLvl = 99;
   }
   else
   {
@@ -315,7 +319,7 @@ void GMSHPlugin_Mesher::FillGMSHMesh()
   for (auto const& ls : listElements)
   {
     // Add nodes of triangles and triangles them-selves to netgen mesh
-    // add three nodes of 
+    // add three nodes of
     bool hasDegen = false;
     for (int iN = 0; iN < 3; ++iN)
     {
@@ -341,7 +345,7 @@ void GMSHPlugin_Mesher::FillGMSHMesh()
     if (hasDegen && (aTrinagle[0] == aTrinagle[1] ||
       aTrinagle[0] == aTrinagle[2] ||
       aTrinagle[2] == aTrinagle[1]))
-      continue;
+        continue;
 
 
     std::vector<int> LinesID(3, 0);
@@ -463,6 +467,9 @@ void GMSHPlugin_Mesher::SetGmshOptions()
     ok = GmshSetOption("Mesh", "SecondOrderIncomplete"  ,(_useIncomplElem)?1.:0.);
     ASSERT(ok);
   }
+
+  ok = GmshSetOption("General", "Verbosity"            , (double) _verbLvl )  ; // Verbosity level
+  ASSERT(ok);
 
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
 /*ok = GmshSetOption("Mesh", "MaxNumThreads1D"          , 0. )  ; // Coarse-grain algo threads
@@ -748,10 +755,10 @@ void GMSHPlugin_Mesher::FillSMesh()
         Standard_Real p1 = 1.0;
         TopLoc_Location loc;
         Handle(Geom_Curve) curve = BRep_Tool::Curve(topoEdge, loc, p0, p1);
-        
+
         if ( !curve.IsNull() )
         {
-          if ( !loc.IsIdentity() ) 
+          if ( !loc.IsIdentity() )
             point3D.Transform( loc.Transformation().Inverted() );
 
           GeomAPI_ProjectPointOnCurve proj(point3D, curve, p0, p1);
@@ -760,12 +767,12 @@ void GMSHPlugin_Mesher::FillSMesh()
           if ( proj.NbPoints() > 0 )
             pa = (double)proj.LowerDistanceParameter();
 
-          meshDS->SetNodeOnEdge( node, topoEdge, pa );  
+          meshDS->SetNodeOnEdge( node, topoEdge, pa );
         }
         else
-        {            
+        {
           meshDS->SetNodeOnEdge( node, topoEdge );
-        }                   
+        }
         //END on BLSURFPlugin_BLSURF
 
 
@@ -803,16 +810,16 @@ void GMSHPlugin_Mesher::FillSMesh()
         if ( verts[j]->onWhat()->getVisibility() == 0 )
         {
           SMDS_MeshNode *node = meshDS->AddNode(verts[j]->x(),verts[j]->y(),verts[j]->z() );
-          
+
           gp_Pnt point3D( verts[j]->x(),verts[j]->y(),verts[j]->z() );
           Standard_Real p0 = 0.0;
           Standard_Real p1 = 1.0;
           TopLoc_Location loc;
           Handle(Geom_Curve) curve = BRep_Tool::Curve(topoEdge, loc, p0, p1);
-          
+
           if ( !curve.IsNull() )
           {
-            if ( !loc.IsIdentity() ) 
+            if ( !loc.IsIdentity() )
               point3D.Transform( loc.Transformation().Inverted() );
 
             GeomAPI_ProjectPointOnCurve proj(point3D, curve, p0, p1);
@@ -821,13 +828,13 @@ void GMSHPlugin_Mesher::FillSMesh()
             if ( proj.NbPoints() > 0 )
               pa = (double)proj.LowerDistanceParameter();
 
-            meshDS->SetNodeOnEdge( node, topoEdge, pa );  
+            meshDS->SetNodeOnEdge( node, topoEdge, pa );
           }
           else
-          {            
+          {
             meshDS->SetNodeOnEdge( node, topoEdge );
-          }                   
-          
+          }
+
           verts[j]->setEntity(gEdge);
           _nodeMap.insert({ verts[j], node });
         }
@@ -1339,7 +1346,6 @@ bool GMSHPlugin_Mesher::Compute()
     }
     else
     {
-      //Msg::SetVerbosity(100);
       //CTX::instance()->mesh.maxNumThreads1D=1;
 
       _gModel->mesh( /*dim=*/ 1);
@@ -1414,7 +1420,7 @@ void GMSHPlugin_Mesher::Set1DSubMeshes( GModel* gModel )
     if ( gEdge->geomType() == GEntity::CompoundCurve )
 #endif
       continue;
-    
+
     TopoDS_Edge topoEdge = *((TopoDS_Edge*)gEdge->getNativePtr());
     if ( !HasSubMesh( topoEdge ))
       continue; // empty sub-mesh

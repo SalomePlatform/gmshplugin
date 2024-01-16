@@ -44,20 +44,20 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Hypothesis_i:
                              ::SMESH_Gen*            theGenImpl);
   // Destructor
   virtual ~GMSHPlugin_Hypothesis_i();
-  
+
   // Ajout d'un truc
   void SetMeshCurvatureSize(CORBA::Double theMeshCurvatureSize);
   CORBA::Double GetMeshCurvatureSize();
-  
+
   void SetMaxSize(CORBA::Double theSize);
   CORBA::Double GetMaxSize();
-  
+
   void SetMinSize(CORBA::Double theSize);
   CORBA::Double GetMinSize();
-  
+
   void SetSecondOrder(CORBA::Boolean theVal);
   CORBA::Boolean GetSecondOrder();
-  
+
   void Set2DAlgo(CORBA::Long the2DAlgo);
   CORBA::Long Get2DAlgo();
   void Set3DAlgo(CORBA::Long the3DAlgo);
@@ -79,13 +79,15 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Hypothesis_i:
   void SetUseIncomplElem(CORBA::Boolean theUseIncomplElem);
   CORBA::Boolean GetUseIncomplElem();
   void SetIs2d(CORBA::Boolean theIs2d);
-  
+  void SetVerbosityLevel(CORBA::Long theVerbLvl);
+  CORBA::Long GetVerbosityLevel();
+
   void SetCompoundOnShape(GEOM::GEOM_Object_ptr GeomObj);
   void SetCompoundOnEntry(const char* entry);
   void UnsetCompoundOnShape(GEOM::GEOM_Object_ptr GeomObj);
   void UnsetCompoundOnEntry(const char* entry);
   GMSHPlugin::string_array* GetCompoundOnEntries();
-  
+
   // fin d'ajout
 
   void SetGrowthRate(CORBA::Double theRate);
@@ -101,13 +103,13 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Hypothesis_i:
   // void SetLocalSizeOnEntry(const char* entry, CORBA::Double localSize);
   // CORBA::Double GetLocalSizeOnEntry(const char* entry);
   // GMSHPlugin::string_array* GetLocalSizeEntries();
-  
+
   void UnsetLocalSizeOnEntry(const char* entry);
 
   // Get implementation
   ::GMSHPlugin_Hypothesis* GetImpl();
-  
-  // Verify whether hypothesis supports given entity type 
+
+  // Verify whether hypothesis supports given entity type
   CORBA::Boolean IsDimSupported( SMESH::Dimension type );
 
  protected:
@@ -138,6 +140,7 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Hypothesis_i:
     METH_SetSizeFactor       = 308,
     METH_SetUseIncomplElem   = 309,
     METH_SetIs2d             = 310,
+    METH_SetVerbosityLevel   = 311,
     // fin d'ajout
     METH_LAST                = METH_SetLocalSizeOnEntry
   };

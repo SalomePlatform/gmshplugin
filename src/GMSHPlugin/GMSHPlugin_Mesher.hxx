@@ -96,6 +96,7 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   bool                 _secondOrder, _useIncomplElem;
   bool                 _is2d;
   bool                 _is3d;
+  int                  _verbLvl;
   GModel*              _gModel;
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
   double               _maxThreads;

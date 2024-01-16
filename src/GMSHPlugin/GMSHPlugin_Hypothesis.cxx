@@ -50,7 +50,8 @@ GMSHPlugin_Hypothesis::GMSHPlugin_Hypothesis (int hypId,
     _minSize        (0),
     _maxSize        (1e22),
     _secondOrder    (false),
-    _useIncomplElem (true)
+    _useIncomplElem (true),
+    _verbLvl(status)
 {
   _name = "GMSH_Parameters";
   _param_algo_dim = 3;
@@ -189,6 +190,11 @@ void GMSHPlugin_Hypothesis::SetIs2d(bool theIs2d)
   _is2d = theIs2d;
 }
 
+void GMSHPlugin_Hypothesis::SetVerbosityLevel(Verbosity theLevel)
+{
+  _verbLvl = theLevel;
+}
+
 
 void GMSHPlugin_Hypothesis::SetCompoundOnEntry(const std::string& entry)
 {
@@ -226,7 +232,8 @@ std::ostream & GMSHPlugin_Hypothesis::SaveTo(std::ostream & save)
           " " << _maxSize              <<
           " " << _minSize              <<
           " " << (int)_secondOrder     <<
-          " " << (int)_useIncomplElem  ;
+          " " << (int)_useIncomplElem  <<
+          " " << (int)_verbLvl         ;
 
   save << " " << "__COMPOUNDS_BEGIN__";
   for (TCompound::const_iterator it = _compounds.begin();  it != _compounds.end(); ++it )
@@ -334,6 +341,12 @@ std::istream & GMSHPlugin_Hypothesis::LoadFrom(std::istream & load)
   isOK = static_cast<bool>(load >> is);
   if (isOK)
     _useIncomplElem = (bool)is;
+  else
+    load.clear(ios::badbit | load.rdstate());
+
+  isOK = static_cast<bool>(load >> is);
+  if (isOK)
+    _verbLvl = (Verbosity)is;
   else
     load.clear(ios::badbit | load.rdstate());
 

@@ -53,6 +53,7 @@ typedef struct
   QString             myMaxSizeVar, myMinSizeVar, mySmouthStepsVar, mySizeFactorVar;
 #endif
   mutable QString     myErrorMsg;
+  int                 myVerbLvl;
 } GmshHypothesisData;
 
 /*!
@@ -73,7 +74,7 @@ protected:
   virtual QFrame*  buildFrame    ();
   virtual void     retrieveParams() const;
   virtual QString  storeParams   () const;
-  
+
   virtual QString  caption() const;
   virtual QPixmap  icon() const;
   virtual QString  type() const;
@@ -82,7 +83,7 @@ protected slots:
   void               updateWidgets();
   virtual void       onAddCompound();
   virtual void       onRemoveCompound();
-  
+
 private:
   bool readParamsFromHypo( GmshHypothesisData& ) const;
   bool readParamsFromWidgets( GmshHypothesisData& ) const;
@@ -107,6 +108,7 @@ private:
  SMESHGUI_SpinBox* myMinSize;
  QCheckBox*        myUseIncomplElem;
  QCheckBox*        mySecondOrder;
+ QComboBox*        myVerbLvl;
  bool myIs2D;
  bool myIs3D;
 

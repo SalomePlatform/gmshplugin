@@ -40,6 +40,38 @@
         <translation>Second ordre</translation>
     </message>
     <message>
+        <source>GMSH_VERB_LVL</source>
+        <translation>Niveau de verbosité</translation>
+    </message>
+    <message>
+        <source>GMSH_SILENT</source>
+        <translation>Silencieux</translation>
+    </message>
+    <message>
+        <source>GMSH_ERRORS</source>
+        <translation>Erreurs</translation>
+    </message>
+    <message>
+        <source>GMSH_WARNINGS</source>
+        <translation>Avertissement</translation>
+    </message>
+    <message>
+        <source>GMSH_DIRECT</source>
+        <translation>Direct</translation>
+    </message>
+    <message>
+        <source>GMSH_INFORMATION</source>
+        <translation>Information</translation>
+    </message>
+    <message>
+        <source>GMSH_STATUS</source>
+        <translation>Status</translation>
+    </message>
+    <message>
+        <source>GMSH_DEBUG</source>
+        <translation>Debug</translation>
+    </message>
+    <message>
         <source>GMSH_COMPOUND</source>
         <translation>Compounds</translation>
     </message>

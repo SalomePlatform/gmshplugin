@@ -1152,12 +1152,15 @@ void GMSHPlugin_Mesher::FillSMesh()
       MVertex *v = gFace->mesh_vertices[i];
       if ( v->getIndex() >= 0 )
       {
+        double U,V;
+        gFace->XYZtoUV( v->x(),v->y(),v->z(), U, V, 1.0 );
+
         SMDS_MeshNode *node = meshDS->AddNode( v->x(),v->y(),v->z() );
 
         if ( isCompound )
           topoFace = TopoDS::Face( getShapeAtPoint( v->point(), topoFaces ));
 
-        meshDS->SetNodeOnFace( node, topoFace );
+        meshDS->SetNodeOnFace( node, topoFace, U, V );
         _nodeMap.insert({ v, node });
       }
     }
@@ -1204,7 +1207,9 @@ void GMSHPlugin_Mesher::FillSMesh()
         if(verts[j]->onWhat()->getVisibility() == 0)
         {
           SMDS_MeshNode *node = meshDS->AddNode(verts[j]->x(),verts[j]->y(),verts[j]->z());
-          meshDS->SetNodeOnFace( node, topoFace );
+          double U,V;
+          gFace->XYZtoUV( verts[j]->x(),verts[j]->y(),verts[j]->z(), U, V, 1.0 );
+          meshDS->SetNodeOnFace( node, topoFace, U, V );
           _nodeMap.insert({ verts[j], node });
           verts[j]->setEntity(gFace);
         }

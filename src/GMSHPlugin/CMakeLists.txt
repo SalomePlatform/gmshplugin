@@ -22,6 +22,7 @@
 # --- options ---
 # additional include directories
 INCLUDE_DIRECTORIES(
+  ${SALOMEBOOTSTRAP_INCLUDE_DIRS}
   ${KERNEL_INCLUDE_DIRS}
   ${OpenCASCADE_INCLUDE_DIR}
   ${GEOM_INCLUDE_DIRS}
@@ -49,8 +50,8 @@ SET(_link_LIBRARIES
   ${OpenCASCADE_ApplicationFramework_LIBRARIES}
   ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}
   ${GMSH_LIBRARIES}
-  ${KERNEL_SALOMELocalTrace}
-  ${KERNEL_SALOMEBasics}
+  ${SALOMEBOOTSTRAP_SALOMELocalTrace}
+  ${SALOMEBOOTSTRAP_SALOMEBasics}
   ${KERNEL_SalomeGenericObj}
   ${KERNEL_SalomeNS}
   ${KERNEL_OpUtil}

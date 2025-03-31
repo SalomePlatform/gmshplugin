@@ -26,6 +26,7 @@
 #include <SMESH_Mesh.hxx>
 #include <SMESH_ControlsDef.hxx>
 #include <SMESHDS_Mesh.hxx>
+#include <StdMeshers_ViscousLayers2D.hxx>
 #include <utilities.h>
 
 #include <list>
@@ -45,6 +46,7 @@ GMSHPlugin_GMSH_2D::GMSHPlugin_GMSH_2D(int hypId, SMESH_Gen* gen)
   _name = "GMSH_2D";
   _shapeType = (1 << TopAbs_FACE); // 1 bit /shape type
   _compatibleHypothesis.push_back("GMSH_Parameters_2D");
+  _compatibleHypothesis.push_back( StdMeshers_ViscousLayers2D::GetHypType() );
   _requireDiscreteBoundary = false;
   _onlyUnaryInput = false;
   _hypothesis = NULL;
@@ -76,28 +78,33 @@ bool GMSHPlugin_GMSH_2D::CheckHypothesis
   MESSAGE("GMSHPlugin_GMSH::CheckHypothesis");
   
   _hypothesis = NULL;
+  _isViscousLayers2D = false;
+
+  aStatus = SMESH_Hypothesis::HYP_OK;
   
-  const list<const SMESHDS_Hypothesis*>& hyps = GetUsedHypothesis(aMesh, aShape);
+  const list<const SMESHDS_Hypothesis*>& hyps = GetUsedHypothesis(aMesh, aShape, /*skipAux=*/false);
   int nbHyp = hyps.size();
   if (!nbHyp)
   {
     aStatus = SMESH_Hypothesis::HYP_OK;
     return true;  // can work with no hypothesis
   }
-  // use only the first hypothesis
-  const SMESHDS_Hypothesis* theHyp = hyps.front();
-  
-  string hypName = theHyp->GetName();
-  if ( find( _compatibleHypothesis.begin(), _compatibleHypothesis.end(),
-             hypName ) != _compatibleHypothesis.end() )
+
+  list<const SMESHDS_Hypothesis*>::const_iterator h = hyps.begin();
+  for (; h != hyps.end(); ++h)
   {
-    _hypothesis = theHyp;
-    aStatus = SMESH_Hypothesis::HYP_OK;
+    const SMESHDS_Hypothesis* theHyp = *h;
+    string hypName = theHyp->GetName();
+    if (hypName == StdMeshers_ViscousLayers2D::GetHypType())
+      _isViscousLayers2D = true;
+    else if ( _hypothesis )
+      aStatus = SMESH_Hypothesis::HYP_INCOMPATIBLE;
+    else
+      _hypothesis = theHyp;
   }
-  else
-  {
-    aStatus = SMESH_Hypothesis::HYP_INCOMPATIBLE;
-  }
+
+  if (aStatus == HYP_OK && _isViscousLayers2D )
+    error(StdMeshers_ViscousLayers2D::CheckHypothesis(aMesh, aShape, aStatus));
 
   return aStatus == SMESH_Hypothesis::HYP_OK;
 }
@@ -113,6 +120,7 @@ bool GMSHPlugin_GMSH_2D::Compute(SMESH_Mesh&         aMesh,
 {
   GMSHPlugin_Mesher mesher(&aMesh, aShape,/*2d=*/true, false);
   mesher.SetParameters(dynamic_cast<const GMSHPlugin_Hypothesis*>(_hypothesis));
+  mesher.SetViscousLayers2DAssigned(_isViscousLayers2D);
   return mesher.Compute();
 }
 

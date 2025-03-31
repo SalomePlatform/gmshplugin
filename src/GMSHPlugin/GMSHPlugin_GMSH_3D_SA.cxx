@@ -132,8 +132,6 @@ void GMSHPlugin_GMSH_3D_SA::fillNewElementFile( std::vector< const SMDS_MeshNode
     MESSAGE("Writting new elements");
     
     std::ofstream df(new_element_file, ios::out|ios::binary);
-    double points[3];
-    int    volumens[4];
 
     df.write((char*) &numberOfNodes, sizeof(int));
 

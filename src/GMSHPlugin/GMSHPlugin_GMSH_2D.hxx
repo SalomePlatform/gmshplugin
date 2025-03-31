@@ -54,6 +54,7 @@ public:
 
 protected:
   const SMESHDS_Hypothesis* _hypothesis;
+  bool _isViscousLayers2D;
 };
 
 #endif

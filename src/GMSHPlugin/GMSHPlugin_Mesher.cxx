@@ -33,6 +33,7 @@
 #include <StdMeshers_FaceSide.hxx>
 #include <utilities.h>
 #include <StdMeshers_QuadToTriaAdaptor.hxx>
+#include <StdMeshers_ViscousLayers2D.hxx>
 
 //CAS
 #include <BRep_Tool.hxx>
@@ -166,7 +167,9 @@ GMSHPlugin_Mesher::GMSHPlugin_Mesher (SMESH_Mesh*         mesh,
   : _mesh    (mesh),
     _shape   (aShape),
     _is2d    (is2D),
-    _is3d    (is3D)
+    _is3d    (is3D),
+    _isViscousLayers2D(false),
+    _viscousLayersHyp(nullptr)
 {
   // il faudra peut être mettre un truc par defaut si l'utilisateur ne rentre rien en para
   //defaultParameters();
@@ -222,6 +225,16 @@ void GMSHPlugin_Mesher::SetParameters(const GMSHPlugin_Hypothesis* hyp)
   }
 }
 
+//================================================================================
+/*!
+ * \brief Store a Viscous Layers hypothesis
+ */
+//================================================================================
+
+void GMSHPlugin_Mesher::SetParameters(const StdMeshers_ViscousLayers* hyp)
+{
+  _viscousLayersHyp = hyp;
+}
 
 //================================================================================
 /*!
@@ -253,7 +266,7 @@ void GMSHPlugin_Mesher::SetMaxThreadsGmsh()
  * \return true if all the nodes are IN the face
  */
  //================================================================================
-bool GMSHPlugin_Mesher::IsAllNodesInSameFace( const SMDS_MeshElement* element, const TopoDS_Face& F, 
+bool GMSHPlugin_Mesher::isAllNodesInSameFace( const SMDS_MeshElement* element, const TopoDS_Face& F, 
                                                 std::vector<gp_XY>& uvValues )
 {
   Handle(ShapeAnalysis_Surface) sprojector = new ShapeAnalysis_Surface( BRep_Tool::Surface( F ));
@@ -281,7 +294,7 @@ bool GMSHPlugin_Mesher::IsAllNodesInSameFace( const SMDS_MeshElement* element, c
  * \return a map between faces (incremental order) and mesh elements found to be placed on the face
  */
  //================================================================================
-std::map<int,std::vector<std::tuple<smIdType,bool,std::vector<gp_XY>>>> GMSHPlugin_Mesher::AssociateElementsToFaces( std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements )
+std::map<int,std::vector<std::tuple<smIdType,bool,std::vector<gp_XY>>>> GMSHPlugin_Mesher::associateElementsToFaces( std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements )
 {
   // Map faces to elementId and uv of nodes.
   // Index by face id
@@ -302,7 +315,7 @@ std::map<int,std::vector<std::tuple<smIdType,bool,std::vector<gp_XY>>>> GMSHPlug
     {
       GFace *gFace = *it;
       TopoDS_Face topoFace = *((TopoDS_Face*)gFace->getNativePtr());
-      if ( IsAllNodesInSameFace( elem, topoFace, uvValues ) )
+      if ( isAllNodesInSameFace( elem, topoFace, uvValues ) )
       {
         elementToFaceMap[ faceId ].push_back( std::make_tuple( elem->GetID(), IsReverse, uvValues ) );     
         break;
@@ -318,11 +331,11 @@ std::map<int,std::vector<std::tuple<smIdType,bool,std::vector<gp_XY>>>> GMSHPlug
  * \brief Add the elements found associated to the face as gmsh elements
  */
  //================================================================================
-void GMSHPlugin_Mesher::Set2DMeshes( std::vector< const SMDS_MeshNode* >& nodeVec, std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements )
+void GMSHPlugin_Mesher::set2DMeshes( std::vector< const SMDS_MeshNode* >& nodeVec, std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements )
 {
   std::map< const SMDS_MeshNode* , const MVertex * > nodes2mvertMap;
   SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
-  auto elementToFaceMap = AssociateElementsToFaces( listElements );
+  auto elementToFaceMap = associateElementsToFaces( listElements );
   int faceId = 1;
   std::vector<MVertex *> mVertices;
 
@@ -475,35 +488,43 @@ void GMSHPlugin_Mesher::FillGeomMapMeshUsing2DMeshIterator( std::map<const SMDS_
 
 //================================================================================
 /*!
- * \brief Initialize GMSH model
+ * \brief Adapt the 2D mesh and compute the 3D mesh using GMSH
  */
- //================================================================================
- void GMSHPlugin_Mesher::Adapt2DQuadMeshAndComputeGmsh3D()
- {
-  SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
-
-  gmsh::initialize();
-  gmsh::model::add("mesh");
-  GModel* gModel_temp = GModel::current();
-
+//================================================================================
+void GMSHPlugin_Mesher::adapt2DQuadMeshAndComputeGmsh3D()
+{
+  ShapeGeomMap solidsToTriangles;
   std::unordered_map<gp_Pnt, const SMDS_MeshNode*> aUniqBoundNodes;
 
   TopAbs_ShapeEnum aMainType = _mesh->GetShapeToMesh().ShapeType();
   bool aCheckReverse = (aMainType == TopAbs_COMPOUND || aMainType == TopAbs_COMPSOLID);
 
+  // Add viscousLayers if they are assigned
+  SMESH_ProxyMesh::Ptr aProxyMesh(new SMESH_ProxyMesh(*_mesh));
+  if ( _viscousLayersHyp )
+  {
+    aProxyMesh = _viscousLayersHyp->Compute( *_mesh, _shape );
+    if ( !aProxyMesh )
+      return;
+  }
+
   SMESH_MesherHelper aHelper(*_mesh);
+  int nbSolids = aHelper.Count( _shape, TopAbs_SOLID, /*skipSame=*/false );
 
   // Iterate over solids in the shape
-  for (TopExp_Explorer exSol(_shape, TopAbs_SOLID); exSol.More(); exSol.Next())
+  vector<SMESH_ProxyMesh::Ptr> pyramidMeshes( nbSolids );
+  int iS = 0;
+  for (TopExp_Explorer exSol(_shape, TopAbs_SOLID); exSol.More(); exSol.Next(), iS++)
   {
     const TopoDS_Shape& anOrigSolid = exSol.Current();
-    SMESH_ProxyMesh::Ptr aProxyMesh(new SMESH_ProxyMesh(*_mesh));
 
     if (_mesh->NbQuadrangles() > 0)
     {
       StdMeshers_QuadToTriaAdaptor* adaptor = new StdMeshers_QuadToTriaAdaptor;
-      adaptor->Compute(*_mesh, anOrigSolid, aProxyMesh.get());
-      aProxyMesh.reset(adaptor);
+      pyramidMeshes[iS].reset(adaptor);
+      bool ok = adaptor->Compute(*_mesh, anOrigSolid, aProxyMesh.get());
+      if ( !ok )
+        return;
     }
 
     // Collect mesh elements for each face of the solid
@@ -520,7 +541,7 @@ void GMSHPlugin_Mesher::FillGeomMapMeshUsing2DMeshIterator( std::map<const SMDS_
         isRev = aHelper.IsReversedSubMesh(TopoDS::Face(aShapeFace));
       }
 
-      const SMESHDS_SubMesh* aSubMeshDSFace = aProxyMesh->GetSubMesh(aShapeFace);
+      const SMESHDS_SubMesh* aSubMeshDSFace = pyramidMeshes[iS]->GetSubMesh(aShapeFace);
       if (!aSubMeshDSFace) continue;
 
       SMDS_ElemIteratorPtr iteratorElem = aSubMeshDSFace->GetElements();
@@ -531,70 +552,110 @@ void GMSHPlugin_Mesher::FillGeomMapMeshUsing2DMeshIterator( std::map<const SMDS_
       }
     }
 
-    // Prepare triangles
-    std::vector<std::unique_ptr<std::array<gp_Pnt, 3>>> aTriangles;
-    for (auto const& ls : listElements)
-    {
-      bool hasDegen = false;
-      auto aTriangle = std::make_unique<std::array<gp_Pnt, 3>>();
+    GeomVector aTriangles;
+    prepareTriangles(listElements, aUniqBoundNodes, aHelper, aTriangles);
+    solidsToTriangles[anOrigSolid] = std::move(aTriangles);
+  }
+  genGMSHMesh(solidsToTriangles, aUniqBoundNodes, 3);
+}
 
-      for (int iN = 0; iN < 3; ++iN)
+//================================================================================
+/*!
+ * \brief Compute the mesh using GMSH with geometry from mesh elements.
+ */
+//================================================================================
+void GMSHPlugin_Mesher::genGMSHMesh
+        (ShapeGeomMap& theShapeGeomMap, 
+         std::unordered_map<gp_Pnt, const SMDS_MeshNode*> & theUniqBoundNodes,
+         int meshDimension)
+{
+  //work with GMSH
+  gmsh::initialize();
+  gmsh::model::add("mesh");
+  GModel* gModel_temp = GModel::current();
+
+  std::unordered_map<gp_Pnt, int> aUniqPoints;
+  auto getPointIndex = [&](const gp_Pnt& p) -> int {
+    if (aUniqPoints.find(p) == aUniqPoints.end())
+      aUniqPoints[p] = gmsh::model::geo::addPoint(p.X(), p.Y(), p.Z());
+    return aUniqPoints[p];
+  };
+
+  std::vector<TopoDS_Shape> meshedShapes;
+  switch (meshDimension)
+  {
+    case 3:
+      for (const auto& shapeGeomPair : theShapeGeomMap)
       {
-        const SMDS_MeshNode* aNode = ls.first->GetNode(iN);
-        const int shapeID = aNode->getshapeId();
+        const TopoDS_Shape& anOrigSolid = shapeGeomPair.first;
+        const GeomVector& aTriangles = shapeGeomPair.second;
 
-        if (aNode->GetPosition()->GetTypeOfPosition() == SMDS_TOP_EDGE && aHelper.IsDegenShape(shapeID))
+        std::vector<int> aSurfTags;
+        for (const GeomPtr& triangPtr : aTriangles)
         {
-          TopoDS_Shape vertex = TopoDS_Iterator(meshDS->IndexToShape(shapeID)).Value();
-          aNode = SMESH_Algo::VertexNode(TopoDS::Vertex(vertex), meshDS);
-          hasDegen = true;
+          const GeomElement& triang = *triangPtr;
+          if (!triang.isTriangle())
+            continue;
+
+          int v1 = getPointIndex(triang.p1);
+          int v2 = getPointIndex(triang.p2);
+          int v3 = getPointIndex(triang.p3);
+
+          int l1 = gmsh::model::geo::addLine(v1, v2);
+          int l2 = gmsh::model::geo::addLine(v2, v3);
+          int l3 = gmsh::model::geo::addLine(v3, v1);
+
+          int aLoop = gmsh::model::geo::addCurveLoop({l1, l2, l3});
+          int aSurf = gmsh::model::geo::addPlaneSurface({aLoop});
+          aSurfTags.push_back(aSurf);
         }
-        gp_Pnt aCoords(aNode->X(), aNode->Y(), aNode->Z());
-        (*aTriangle)[ls.second ? 2 - iN : iN] = aCoords;
-        aUniqBoundNodes.insert(std::make_pair(aCoords, aNode));
-      }
 
-      // Skip degenerate triangles
-      if (hasDegen && ((*aTriangle)[0].IsEqual((*aTriangle)[1], Precision::Confusion()) ||
-                      (*aTriangle)[0].IsEqual((*aTriangle)[2], Precision::Confusion()) ||
-                      (*aTriangle)[2].IsEqual((*aTriangle)[1], Precision::Confusion())))
+        int aSurfLoop = gmsh::model::geo::addSurfaceLoop(aSurfTags);
+        int aVolume = gmsh::model::geo::addVolume({aSurfLoop});
+        _shapeGMSHMap[aVolume] = anOrigSolid;
+        meshedShapes.push_back(anOrigSolid);
+      }
+      break;
+
+    case 2:
+      for (const auto& shapeGeomPair : theShapeGeomMap)
       {
-        continue;
+        const TopoDS_Shape& face = shapeGeomPair.first;
+        const GeomVector& edgeVec = shapeGeomPair.second;
+
+        std::vector<int> curveLoops;
+        std::vector<int> lineTags;
+        for (const GeomPtr& edgePtr : edgeVec)
+        {
+          if (!edgePtr && lineTags.size() >= 3)
+          {
+            int loopTag = gmsh::model::geo::addCurveLoop(lineTags);
+            curveLoops.push_back(loopTag);
+            lineTags.clear();
+            continue;
+          }
+
+          const GeomElement& edge = *edgePtr;
+          if (!edge.isEdge())
+            continue;
+
+          int id1 = getPointIndex(edge.p1);
+          int id2 = getPointIndex(edge.p2);
+          int lineTag = gmsh::model::geo::addLine(id1, id2);
+          lineTags.push_back(lineTag);
+        }
+
+        if (!curveLoops.empty())
+        {
+          int surfTag = gmsh::model::geo::addPlaneSurface(curveLoops);
+          _shapeGMSHMap[surfTag] = face;
+          meshedShapes.push_back(face);
+        }
       }
-      aTriangles.push_back(std::move(aTriangle));
-    }
+      break;
 
-    // Create GMSH geometry from triangles
-    std::unordered_map<gp_Pnt, int> aUniqPoints;
-    std::map<std::pair<int, int>, int> aUniqLines;
-    std::vector<int> aSurfTags;
-
-    auto getPointIndex = [&](const gp_Pnt& p) -> int {
-      if (aUniqPoints.find(p) == aUniqPoints.end())
-        aUniqPoints[p] = gmsh::model::geo::addPoint(p.X(), p.Y(), p.Z());
-
-      return aUniqPoints[p];
-    };
-
-    for (const auto& triangPtr : aTriangles)
-    {
-      const auto& triang = *triangPtr;
-      int v1 = getPointIndex(triang[0]);
-      int v2 = getPointIndex(triang[1]);
-      int v3 = getPointIndex(triang[2]);
-
-      int l1 = gmsh::model::geo::addLine(v1, v2);
-      int l2 = gmsh::model::geo::addLine(v2, v3);
-      int l3 = gmsh::model::geo::addLine(v3, v1);
-
-      int aLoop = gmsh::model::geo::addCurveLoop({l1, l2, l3});
-      int aSurf = gmsh::model::geo::addPlaneSurface({aLoop});
-      aSurfTags.push_back(aSurf);
-    }
-
-    int aSurfLoop = gmsh::model::geo::addSurfaceLoop(aSurfTags);
-    int aVolume = gmsh::model::geo::addVolume({aSurfLoop});
-    _shapeGMSHMap.insert(std::make_pair(aVolume, anOrigSolid));
+    default:
+      break; // Unsupported mesh dimension
   }
 
   gmsh::model::geo::synchronize();
@@ -606,8 +667,8 @@ void GMSHPlugin_Mesher::FillGeomMapMeshUsing2DMeshIterator( std::map<const SMDS_
     gmsh::model::mesh::setTransfiniteCurve(entity.second, 2);
   }
 
-  //compute 3d mesh with GMSH
-  gmsh::model::mesh::generate(3);
+  //compute mesh with GMSH
+  gmsh::model::mesh::generate(meshDimension);
 
   //fill _nodeMap with boundary nodes(which are already in smesh)
   for ( GModel::viter it = gModel_temp->firstVertex(); it != gModel_temp->lastVertex(); ++it)
@@ -616,14 +677,19 @@ void GMSHPlugin_Mesher::FillGeomMapMeshUsing2DMeshIterator( std::map<const SMDS_
     for (MVertex* v : gVertex->mesh_vertices) 
     {
       gp_Pnt aCoords(v->x(), v->y(), v->z());
-      if (aUniqBoundNodes.find(aCoords) != aUniqBoundNodes.end())
+      if (theUniqBoundNodes.find(aCoords) != theUniqBoundNodes.end())
       {
-        _nodeMap[v] = aUniqBoundNodes[aCoords];
+        _nodeMap[v] = theUniqBoundNodes[aCoords];
       }
     }
   }
 
-  FillSMesh3D(gModel_temp, meshDS);
+  meshDimension == 2 ? fillSMesh2D(gModel_temp, _mesh->GetMeshDS(), true) : fillSMesh3D(gModel_temp, _mesh->GetMeshDS());
+  for (const auto& s : meshedShapes)
+  {
+    _meshedShapes.insert(s);
+  }
+  _shapeGMSHMap.clear();
 
   //does not really work as expected, it is only possible to work through api with models that were added by gmsh::model::add("mesh");
   GModel::setCurrent(_gModel); 
@@ -631,12 +697,62 @@ void GMSHPlugin_Mesher::FillGeomMapMeshUsing2DMeshIterator( std::map<const SMDS_
 
 //================================================================================
 /*!
+ * \brief Prepare triangles from a list of mesh elements(faces)
+ */
+ //================================================================================
+void GMSHPlugin_Mesher::prepareTriangles
+                (const std::map<const SMDS_MeshElement*, bool, TIDCompare>& theListElements,
+                 std::unordered_map<gp_Pnt, const SMDS_MeshNode*> & theUniqBoundNodes,
+                 SMESH_MesherHelper& theMeshHelper,
+                 GeomVector& aTriangles)
+{
+  if(theListElements.empty())
+    return;
+
+  SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
+
+  // Prepare triangles
+  for (auto const& ls : theListElements)
+  {
+    bool hasDegen = false;
+    gp_Pnt points[3];
+
+    for (int iN = 0; iN < 3; ++iN)
+    {
+      const SMDS_MeshNode* aNode = ls.first->GetNode(iN);
+      const int shapeID = aNode->getshapeId();
+
+      if (aNode->GetPosition()->GetTypeOfPosition() == SMDS_TOP_EDGE && theMeshHelper.IsDegenShape(shapeID))
+      {
+        TopoDS_Shape vertex = TopoDS_Iterator(meshDS->IndexToShape(shapeID)).Value();
+        aNode = SMESH_Algo::VertexNode(TopoDS::Vertex(vertex), meshDS);
+        hasDegen = true;
+      }
+      gp_Pnt aCoords(aNode->X(), aNode->Y(), aNode->Z());
+      points[ls.second ? 2 - iN : iN] = aCoords;
+      theUniqBoundNodes.insert(std::make_pair(aCoords, aNode));
+    }
+
+    // Skip degenerate triangles
+    if (hasDegen && (points[0].IsEqual(points[1], Precision::Confusion()) ||
+                    points[0].IsEqual(points[2], Precision::Confusion()) ||
+                    points[2].IsEqual(points[1], Precision::Confusion())))
+    {
+      continue;
+    }
+    auto aTriangle = std::make_unique<GeomElement>(points[0], points[1], points[2]);
+    aTriangles.push_back(std::move(aTriangle));
+  }
+}
+
+//================================================================================
+/*!
  * \brief Set Gmsh Options
  */
  //================================================================================
-void GMSHPlugin_Mesher::SetGmshOptions()
+void GMSHPlugin_Mesher::setGmshOptions()
 {
-  MESSAGE("GMSHPlugin_Mesher::SetGmshOptions");
+  MESSAGE("GMSHPlugin_Mesher::setGmshOptions");
   /*
   printf("We chose _algo2d         %d \n", _algo2d        );
   printf("We chose _algo3d         %d \n", _algo3d        );
@@ -734,7 +850,7 @@ void GMSHPlugin_Mesher::SetGmshOptions()
   ASSERT(ok);
 #ifdef WIN32
   if ( GMSHPlugin_Hypothesis::Algo3D::hxt == _algo3d ){
-    MESSAGE("GMSHPlugin_Mesher::SetGmshOptions: HXT algorithm is being used. Setting number of threads to 1.");
+    MESSAGE("GMSHPlugin_Mesher::setGmshOptions: HXT algorithm is being used. Setting number of threads to 1.");
     ok = GmshSetOption("Mesh", "MaxNumThreads3D"       , 1. );
     ASSERT(ok);
   } // hxt
@@ -748,9 +864,9 @@ void GMSHPlugin_Mesher::SetGmshOptions()
  */
 //================================================================================
 
-void GMSHPlugin_Mesher::CreateGmshCompounds()
+void GMSHPlugin_Mesher::createGmshCompounds()
 {
-  MESSAGE("GMSHPlugin_Mesher::CreateGmshCompounds");
+  MESSAGE("GMSHPlugin_Mesher::createGmshCompounds");
 
   SMESH_Gen_i* smeshGen_i = SMESH_Gen_i::GetSMESHGen();
 
@@ -906,7 +1022,7 @@ const SMDS_MeshNode* GMSHPlugin_Mesher::PremeshedNode( const MVertex* v )
  */
 //================================================================================
 
-SMESHDS_SubMesh* GMSHPlugin_Mesher::HasSubMesh( const TopoDS_Shape& s )
+SMESHDS_SubMesh* GMSHPlugin_Mesher::hasSubMesh( const TopoDS_Shape& s )
 {
   if ( SMESHDS_SubMesh*  sm = _mesh->GetMeshDS()->MeshElements( s ))
   {
@@ -923,7 +1039,7 @@ SMESHDS_SubMesh* GMSHPlugin_Mesher::HasSubMesh( const TopoDS_Shape& s )
  * \brief Fill the mesh with 0D elements
  */
 //================================================================================
-void GMSHPlugin_Mesher::FillSMesh0D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
+void GMSHPlugin_Mesher::fillSMesh0D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
 {
   if(!theGModel)
     return;
@@ -950,7 +1066,7 @@ void GMSHPlugin_Mesher::FillSMesh0D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
       MVertex *v = gVertex->mesh_vertices[i];
       if(v->getIndex() >= 0)
       {
-        if ( SMESHDS_SubMesh* sm = HasSubMesh( topoVertex ))
+        if ( SMESHDS_SubMesh* sm = hasSubMesh( topoVertex ))
         {
           const SMDS_MeshNode *node = sm->GetNodes()->next();
           _nodeMap.insert({ v, node });
@@ -983,7 +1099,7 @@ void GMSHPlugin_Mesher::FillSMesh0D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
  * \brief Fill the mesh with 1D elements
  */
 //================================================================================
-void GMSHPlugin_Mesher::FillSMesh1D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
+void GMSHPlugin_Mesher::fillSMesh1D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
 {
   if(!theGModel)
     return;
@@ -1009,7 +1125,7 @@ void GMSHPlugin_Mesher::FillSMesh1D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
         sm->SetIsAlwaysComputed(true); // prevent from displaying errors
         continue;
       }
-      if ( HasSubMesh( topoEdge ))
+      if ( hasSubMesh( topoEdge ))
         continue; // a meshed sub-mesh
     }
     bool isCompound = getBoundsOfShapes( gEdge, topoEdges );
@@ -1068,7 +1184,7 @@ void GMSHPlugin_Mesher::FillSMesh1D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
     if ( !isCompound )
       topoEdge = *((TopoDS_Edge*)gEdge->getNativePtr());
 
-    if ( HasSubMesh( topoEdge ))
+    if ( hasSubMesh( topoEdge ))
       continue; // a meshed sub-mesh
 
     //elements
@@ -1103,7 +1219,7 @@ void GMSHPlugin_Mesher::FillSMesh1D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
             if ( proj.NbPoints() > 0 )
               pa = (double)proj.LowerDistanceParameter();
 
-              theMeshDS->SetNodeOnEdge( node, topoEdge, pa );
+            theMeshDS->SetNodeOnEdge( node, topoEdge, pa );
           }
           else
           {
@@ -1134,7 +1250,7 @@ void GMSHPlugin_Mesher::FillSMesh1D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
       if ( isCompound )
         topoEdge = TopoDS::Edge( getShapeAtPoint( e->barycenter(), topoEdges ));
 
-        theMeshDS->SetMeshElementOnShape( edge, topoEdge );
+      theMeshDS->SetMeshElementOnShape( edge, topoEdge );
     }
   }
 }
@@ -1144,7 +1260,9 @@ void GMSHPlugin_Mesher::FillSMesh1D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
  * \brief Fill the mesh with 2D elements
  */
 //================================================================================
-void GMSHPlugin_Mesher::FillSMesh2D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
+void GMSHPlugin_Mesher::fillSMesh2D(GModel* theGModel,
+                                    SMESHDS_Mesh* theMeshDS,
+                                    bool allowFaceEdit)
 {
   if(!theGModel)
     return;
@@ -1153,6 +1271,7 @@ void GMSHPlugin_Mesher::FillSMesh2D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
   for ( GModel::fiter it = theGModel->firstFace(); it != theGModel->lastFace(); ++it)
   {
     GFace *gFace = *it;
+    int tag = gFace->tag();
 
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
     // Gmsh since version 4.3 is now producing extra surface and mesh when
@@ -1174,14 +1293,20 @@ void GMSHPlugin_Mesher::FillSMesh2D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
     if ( gFace->geomType() != GEntity::CompoundSurface )
 #endif
     {
-      topoFace = *((TopoDS_Face*)gFace->getNativePtr());
+      topoFace = (_shapeGMSHMap.find(tag) != _shapeGMSHMap.end()) ?
+        TopoDS::Face(_shapeGMSHMap[tag]) : *((TopoDS_Face*)gFace->getNativePtr());
+
       if (gFace->getVisibility() == 0) // belongs to a compound
       {
         SMESH_subMesh* sm = _mesh->GetSubMesh(topoFace);
         sm->SetIsAlwaysComputed(true); // prevent from displaying errors
         continue;
       }
-      if ( HasSubMesh( topoFace ))
+
+      if(_meshedShapes.find(topoFace) != _meshedShapes.end())
+        continue;
+      
+      if ( hasSubMesh( topoFace ) && !allowFaceEdit) //Allow face editing when adding a mesh to viscous layers, for example
         continue; // a meshed sub-mesh
     }
     bool isCompound = getBoundsOfShapes( gFace, topoFaces );
@@ -1210,6 +1335,7 @@ void GMSHPlugin_Mesher::FillSMesh2D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
   for ( GModel::fiter it = theGModel->firstFace(); it != theGModel->lastFace(); ++it)
   {
     GFace *gFace = *it;
+    int tag = gFace->tag();
 
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
     if ( _compounds.size() && gFace->geomType() == GEntity::DiscreteSurface )
@@ -1228,9 +1354,15 @@ void GMSHPlugin_Mesher::FillSMesh2D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
     if ( isCompound )
       getBoundsOfShapes( gFace, topoFaces );
     else
-      topoFace = *((TopoDS_Face*)gFace->getNativePtr());
+    {
+      topoFace = (_shapeGMSHMap.find(tag) != _shapeGMSHMap.end()) ?
+        TopoDS::Face(_shapeGMSHMap[tag]): *((TopoDS_Face*)gFace->getNativePtr());
+    }
 
-    if ( HasSubMesh( topoFace ))
+    if(_meshedShapes.find(topoFace) != _meshedShapes.end())
+      continue;
+
+    if (hasSubMesh( topoFace ) && !allowFaceEdit) //Allow face editing when adding a mesh to viscous layers, for example
       continue; // a meshed sub-mesh
 
     //elements
@@ -1315,7 +1447,7 @@ void GMSHPlugin_Mesher::FillSMesh2D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
  * \brief Fill the mesh with 3D elements
  */
 //================================================================================
-void GMSHPlugin_Mesher::FillSMesh3D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
+void GMSHPlugin_Mesher::fillSMesh3D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
 {
   if(!theGModel)
     return;
@@ -1330,14 +1462,11 @@ void GMSHPlugin_Mesher::FillSMesh3D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
     // GET topoSolid CORRESPONDING TO gRegion
     TopoDS_Solid topoSolid;
     int tag = gRegion->tag();
-    if(_shapeGMSHMap.find(tag) != _shapeGMSHMap.end())
-    {
-      topoSolid = TopoDS::Solid(_shapeGMSHMap[tag]);
-    }
-    else
-    {
-      topoSolid = *((TopoDS_Solid*)gRegion->getNativePtr());
-    }
+    topoSolid = (_shapeGMSHMap.find(tag) != _shapeGMSHMap.end()) ?
+      TopoDS::Solid(_shapeGMSHMap[tag]) : *((TopoDS_Solid*)gRegion->getNativePtr());
+
+    if(_meshedShapes.find(topoSolid) != _meshedShapes.end())
+      continue; 
 
     // FILL SMESH FOR topoSolid
 
@@ -1535,7 +1664,7 @@ void GMSHPlugin_Mesher::FillSMesh3D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
  */
 //================================================================================
 
-void GMSHPlugin_Mesher::FillSMesh(GModel* gModel)
+void GMSHPlugin_Mesher::fillSMesh(GModel* gModel)
 {
   if(!gModel)
     return;
@@ -1543,16 +1672,16 @@ void GMSHPlugin_Mesher::FillSMesh(GModel* gModel)
   SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
 
   // ADD 0D ELEMENTS
-  FillSMesh0D(gModel, meshDS);
+  fillSMesh0D(gModel, meshDS);
 
   // ADD 1D ELEMENTS
-  FillSMesh1D(gModel, meshDS);
+  fillSMesh1D(gModel, meshDS);
 
   // ADD 2D ELEMENTS
-  FillSMesh2D(gModel, meshDS);
+  fillSMesh2D(gModel, meshDS);
 
   // ADD 3D ELEMENTS
-  FillSMesh3D(gModel, meshDS);
+  fillSMesh3D(gModel, meshDS);
 }
 
 //================================================================================
@@ -1654,7 +1783,7 @@ bool GMSHPlugin_Mesher::Compute3D( std::vector< const SMDS_MeshNode* >& nodeVec,
 
   char* argv[] = {"-noenv"};
   GmshInitialize(1,argv);
-  SetGmshOptions();
+  setGmshOptions();
   _gModel = new GModel();
   mymsg msg(_gModel);
   GmshSetMessageHandler(&msg);
@@ -1662,10 +1791,10 @@ bool GMSHPlugin_Mesher::Compute3D( std::vector< const SMDS_MeshNode* >& nodeVec,
   _gModel->importOCCShape((void*)&_shape);
   try
   {
-    HideComputedEntities( _gModel, true );   
+    hideComputedEntities( _gModel, true );   
     // fill geometry with elements as geom objects
     FillGeomMapMeshUsing2DMeshIterator( listElements );
-    Set2DMeshes( nodeVec, listElements );
+    set2DMeshes( nodeVec, listElements );
     _gModel->mesh( /*dim=*/ 3);
   }
   catch (std::string& str)
@@ -1688,7 +1817,7 @@ bool GMSHPlugin_Mesher::Compute3D( std::vector< const SMDS_MeshNode* >& nodeVec,
   }
   
   if ( addElements )
-    FillSMesh(_gModel);
+    fillSMesh(_gModel);
   MESSAGE("GMSHPlugin_Mesher::Compute3D:End");
   return err;
 }
@@ -1721,27 +1850,31 @@ bool GMSHPlugin_Mesher::Compute()
   //RNV: to avoid modification of PATH and PYTHONPATH
   char* argv[] = {"-noenv"};
   GmshInitialize(1,argv);
-  SetGmshOptions();
+  setGmshOptions();
   _gModel = new GModel();
   mymsg msg(_gModel);
   GmshSetMessageHandler(&msg);
   _gModel->importOCCShape((void*)&_shape);
-  if (_compounds.size() > 0) CreateGmshCompounds();
+  if (_compounds.size() > 0) createGmshCompounds();
   try
   {
-    HideComputedEntities(_gModel);
+    hideComputedEntities(_gModel);
     if (_is3d)
     {
       if (_mesh->NbQuadrangles() > 0)
       {
-        Adapt2DQuadMeshAndComputeGmsh3D();
+        adapt2DQuadMeshAndComputeGmsh3D();
       }
       else
       {
         _gModel->mesh( /*dim=*/ 1);
-        Set1DSubMeshes(_gModel);
+        set1DSubMeshes(_gModel);
         _gModel->mesh( /*dim=*/ 2);
-        Set2DSubMeshes(_gModel);
+        set2DSubMeshes(_gModel);
+        if(_viscousLayersHyp)
+        {
+          fill3DViscousLayerAndQuadAdapt();
+        }
         _gModel->mesh( /*dim=*/ 3);
       }
     }
@@ -1749,19 +1882,29 @@ bool GMSHPlugin_Mesher::Compute()
     {
       //CTX::instance()->mesh.maxNumThreads1D=1;
       _gModel->mesh( /*dim=*/ 1);
-      Set1DSubMeshes(_gModel);
+      set1DSubMeshes(_gModel);
+
+      if(_isViscousLayers2D)
+      {
+        fill2DViscousLayer();
+      }
 
       //CTX::instance()->mesh.maxNumThreads2D=1;
       _gModel->mesh( /*dim=*/ 2);
 
       if (!_is2d)
       {
-        Set2DSubMeshes(_gModel);
+        set2DSubMeshes(_gModel);
+
+        if(_viscousLayersHyp)
+        {
+          fill3DViscousLayerAndQuadAdapt();
+        }
 
         //CTX::instance()->mesh.maxNumThreads3D=1;
         _gModel->mesh( /*dim=*/ 3);
       }
-      RestoreVisibility(_gModel);
+      restoreVisibility(_gModel);
     }
 #ifdef WITH_SMESH_CANCEL_COMPUTE
 
@@ -1786,7 +1929,7 @@ bool GMSHPlugin_Mesher::Compute()
     if (_compounds.size() > 0)
       SetCompoundMeshVisibility();
 #endif
-    FillSMesh(_gModel);
+    fillSMesh(_gModel);
   }
   GmshSetMessageHandler(nullptr);
   delete _gModel;
@@ -1796,13 +1939,183 @@ bool GMSHPlugin_Mesher::Compute()
 }
 
 //================================================================================
+bool GMSHPlugin_Mesher::fill3DViscousLayerAndQuadAdapt()
+{
+  if(!_viscousLayersHyp)
+    return false;
+
+  //fill s_mesh with 1d and 2d elements
+  fillSMesh(_gModel);
+
+  SMESH_ProxyMesh::Ptr viscousMesh;
+  viscousMesh = _viscousLayersHyp->Compute( *_mesh, _shape );
+  if (!viscousMesh)
+    return false;
+
+  //create pyramids for quad elements
+  smIdType nbQuad = _mesh->NbQuadrangles();
+  SMESH_MesherHelper aHelper(*_mesh);
+
+  int solidIndex = 0;
+  int nbSolids = aHelper.Count( _shape, TopAbs_SOLID, /*skipSame=*/false );
+  vector<SMESH_ProxyMesh::Ptr> pyramidMeshes( nbSolids ); //get number solids
+  if ( nbQuad > 0 )
+  {
+    for (TopExp_Explorer exSol(_shape, TopAbs_SOLID); exSol.More(); exSol.Next(), solidIndex++)
+    {
+      StdMeshers_QuadToTriaAdaptor* adaptor = new StdMeshers_QuadToTriaAdaptor;
+      pyramidMeshes[solidIndex].reset(adaptor);
+
+      if (!adaptor->Compute( *_mesh, exSol.Current(), viscousMesh.get()))
+        return false;
+    }
+  }
+
+  solidIndex = 0;
+  std::unordered_map<TopoDS_Shape, std::list<const SMESHDS_SubMesh*>> solidToSM;
+  for (TopExp_Explorer exSol(_shape, TopAbs_SOLID); exSol.More(); exSol.Next(), solidIndex++)
+  {
+    const TopoDS_Shape& anOrigSolid = exSol.Current();
+    std::list<const SMESHDS_SubMesh*> currentSM;
+    bool hasViscousLayerOrQuad = false;
+
+    for (TopExp_Explorer exFace(anOrigSolid, TopAbs_FACE); exFace.More(); exFace.Next())
+    {
+      const TopoDS_Shape& aShapeFace = exFace.Current();
+      if ( pyramidMeshes[solidIndex] && pyramidMeshes[solidIndex]->GetProxySubMesh(aShapeFace))
+      {
+        currentSM.push_back(pyramidMeshes[solidIndex]->GetSubMesh(aShapeFace));
+        hasViscousLayerOrQuad  = true;
+      }
+      else if(viscousMesh && viscousMesh->GetProxySubMesh(aShapeFace))
+      {
+        currentSM.push_back(viscousMesh->GetSubMesh(aShapeFace));
+        hasViscousLayerOrQuad  = true;
+      }
+      else if(hasSubMesh(aShapeFace))
+      {
+        currentSM.push_back(_mesh->GetSubMesh(aShapeFace)->GetSubMeshDS());
+      }
+    }
+    if(hasViscousLayerOrQuad)
+      solidToSM[anOrigSolid] = currentSM;
+  }
+
+  ShapeGeomMap solidsToTriangles;
+  std::vector<TopoDS_Shape> meshedSolids;
+  std::unordered_map<gp_Pnt, const SMDS_MeshNode*> aUniqBoundNodes;
+  for (const auto& pair : solidToSM)
+  {
+    const TopoDS_Shape& solidOrig = pair.first;
+    const std::list<const SMESHDS_SubMesh*>& smDSList = pair.second;
+
+    std::map<const SMDS_MeshElement*, bool, TIDCompare> listElements;
+    for (const SMESHDS_SubMesh* smDS : smDSList)
+    {
+      if ( !smDS ) continue;
+
+      SMDS_ElemIteratorPtr faces = smDS->GetElements();
+      while ( faces->more() )
+      {
+        const SMDS_MeshElement* f = faces->next();
+        if (f->NbCornerNodes() == 3) listElements[f] = false;
+      }
+    }
+
+    GeomVector aTriangles;
+    prepareTriangles(listElements, aUniqBoundNodes, aHelper, aTriangles);
+    solidsToTriangles[solidOrig] = std::move(aTriangles);
+  }
+
+  // generate mesh with created solids
+  genGMSHMesh(solidsToTriangles, aUniqBoundNodes, 3);
+
+  return true;
+}
+
+//================================================================================
+bool GMSHPlugin_Mesher::fill2DViscousLayer()
+{
+  //fill s_mesh with 1d elements
+  fillSMesh0D(_gModel, _mesh->GetMeshDS());
+  fillSMesh1D(_gModel, _mesh->GetMeshDS());
+
+  std::unordered_map<gp_Pnt, const SMDS_MeshNode*> aUniqBoundNodes;
+  SMESH_ComputeErrorPtr error = SMESH_ComputeError::New();
+  SMESH_MesherHelper helper(*_mesh);
+
+  ShapeGeomMap aShapeEdgeMap;
+
+  SMESH_ProxyMesh::Ptr viscousMesh;
+  for (GModel::fiter it = _gModel->firstFace(); it != _gModel->lastFace(); ++it)
+  {
+    GFace *gFace = *it;
+    TopoDS_Face& anOrigFace = *((TopoDS_Face*)gFace->getNativePtr());
+
+    //compute viscous layers
+    viscousMesh = StdMeshers_ViscousLayers2D::Compute( *_mesh, anOrigFace );
+    if ( !viscousMesh )
+      return false;
+
+    if ( viscousMesh->NbProxySubMeshes() == 0 )
+      continue;
+
+    // Get wire contours of the face
+    TSideVector wires = StdMeshers_FaceSide::GetFaceWires( 
+      anOrigFace, *_mesh, /*skipMediumNodes=*/true, error, &helper, viscousMesh );
+
+    std::vector<TopoDS_Wire> topo_wires;
+    topo_wires.reserve(wires.size());
+
+    GeomVector edgeVector;
+    for (const auto& wire : wires)
+    {
+      std::vector<const SMDS_MeshNode*> aNodes;
+      const vector<UVPtStruct>& uvPtVec = wire->GetUVPtStruct();
+      const smIdType nbSegments = wire->NbPoints() - 1;
+
+      // Collect nodes and register them in the unique node map
+      for ( int i = 0; i < nbSegments; ++i )
+      {
+        const SMDS_MeshNode * aNode = uvPtVec[ i ].node;
+        aNodes.push_back(aNode);
+
+        gp_Pnt aNodePnt(aNode->X(), aNode->Y(), aNode->Z());
+        aUniqBoundNodes.insert(std::make_pair(aNodePnt, aNode));
+      }
+
+      // Build wire from mesh nodes
+      for (size_t i = 0; i < aNodes.size(); ++i) 
+      {
+        const auto* n1 = aNodes[i];
+        const auto* n2 = aNodes[(i + 1) % aNodes.size()];
+
+        gp_Pnt p1(n1->X(), n1->Y(), n1->Z());
+        gp_Pnt p2(n2->X(), n2->Y(), n2->Z());
+    
+        auto geomPtr = std::make_unique<GeomElement>(p1, p2);
+        edgeVector.push_back(std::move(geomPtr));
+      }
+      edgeVector.push_back(nullptr); // Add empty edge to close the wire
+    }
+
+    if ( !edgeVector.empty() )
+      aShapeEdgeMap[anOrigFace] = std::move(edgeVector);
+  }
+
+  // Generate GMSH mesh from the constructed geometry
+  genGMSHMesh(aShapeEdgeMap, aUniqBoundNodes, 2);
+  return true;
+}
+
+//================================================================================
 /*!
  * \brief Set 1D sub-meshes to GModel. GMSH 1D mesh is made by now.
  *  \param [inout] _gModel - GMSH model
  */
 //================================================================================
 
-void GMSHPlugin_Mesher::Set1DSubMeshes( GModel* gModel )
+void GMSHPlugin_Mesher::set1DSubMeshes( GModel* gModel )
 {
   SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
 
@@ -1818,7 +2131,7 @@ void GMSHPlugin_Mesher::Set1DSubMeshes( GModel* gModel )
       continue;
 
     TopoDS_Edge topoEdge = *((TopoDS_Edge*)gEdge->getNativePtr());
-    if ( !HasSubMesh( topoEdge ))
+    if ( !hasSubMesh( topoEdge ))
       continue; // empty sub-mesh
 
     gEdge->deleteMesh();
@@ -1891,7 +2204,7 @@ void GMSHPlugin_Mesher::Set1DSubMeshes( GModel* gModel )
  */
 //================================================================================
 
-void GMSHPlugin_Mesher::Set2DSubMeshes( GModel* gModel )
+void GMSHPlugin_Mesher::set2DSubMeshes( GModel* gModel )
 {
   if ( _nodeMap.empty() )
     return; // no sub-meshes
@@ -1916,7 +2229,7 @@ void GMSHPlugin_Mesher::Set2DSubMeshes( GModel* gModel )
         continue;
 
     TopoDS_Face topoFace = *((TopoDS_Face*)gFace->getNativePtr());
-    SMESHDS_SubMesh*  sm = HasSubMesh( topoFace );
+    SMESHDS_SubMesh*  sm = hasSubMesh( topoFace );
     if ( !sm )
       continue;
     //_gModel->writeUNV("/tmp/befDEl.unv", 1,0,0);
@@ -1997,7 +2310,7 @@ void GMSHPlugin_Mesher::Set2DSubMeshes( GModel* gModel )
  */
 //================================================================================
 
-void GMSHPlugin_Mesher::HideComputedEntities( GModel* gModel, bool hideAnyway )
+void GMSHPlugin_Mesher::hideComputedEntities( GModel* gModel, bool hideAnyway )
 {
   CTX::instance()->mesh.meshOnlyVisible = true;
 
@@ -2013,7 +2326,7 @@ void GMSHPlugin_Mesher::HideComputedEntities( GModel* gModel, bool hideAnyway )
         continue;
 
     TopoDS_Edge topoEdge = *((TopoDS_Edge*)gEdge->getNativePtr());
-    if ( HasSubMesh( topoEdge ) || hideAnyway )
+    if ( hasSubMesh( topoEdge ) || hideAnyway )
       gEdge->setVisibility(0);
   }
 
@@ -2030,7 +2343,7 @@ void GMSHPlugin_Mesher::HideComputedEntities( GModel* gModel, bool hideAnyway )
         continue;
 
     TopoDS_Face topoFace = *((TopoDS_Face*)gFace->getNativePtr());
-    if ( HasSubMesh( topoFace ) || hideAnyway )
+    if ( hasSubMesh( topoFace ) || hideAnyway )
       gFace->setVisibility(0);
   }
 }
@@ -2041,7 +2354,7 @@ void GMSHPlugin_Mesher::HideComputedEntities( GModel* gModel, bool hideAnyway )
  */
 //================================================================================
 
-void GMSHPlugin_Mesher::RestoreVisibility( GModel* gModel )
+void GMSHPlugin_Mesher::restoreVisibility( GModel* gModel )
 {
   for(GModel::eiter it = gModel->firstEdge(); it != gModel->lastEdge(); ++it)
   {

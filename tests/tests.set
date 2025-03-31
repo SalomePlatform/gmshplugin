@@ -30,6 +30,9 @@ SET(GUI_NAMES
   gmsh_compound_mesh_3d
   gmsh_mesh_3d
   ex1_gmsh3d_with_quad2d
+  gmsh_VL3d_1
+  gmsh_VL3d_2
+  gmsh_VL2d
 )
 
 SET(TEST_NAMES ${TUI_NAMES} ${GUI_NAMES})

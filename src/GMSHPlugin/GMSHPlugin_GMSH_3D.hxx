@@ -28,6 +28,8 @@
 #include "SMESH_subMesh.hxx"
 #include "SMESH_Mesh.hxx"
 
+class StdMeshers_ViscousLayers;
+
 class GMSHPLUGIN_EXPORT GMSHPlugin_GMSH_3D: public SMESH_3D_Algo
 {
 public:
@@ -51,6 +53,7 @@ public:
 
 protected:
   const SMESHDS_Hypothesis* _hypothesis;
+  const StdMeshers_ViscousLayers* _viscousLayersHyp;
 };
 
 #endif

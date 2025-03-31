@@ -228,19 +228,18 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
   row++;
 
   mySubdivAlgo = 0;
-
-  aGroupLayout->addWidget(new QLabel(tr("GMSH_SUBDIV_ALGO"), GroupC1), row, 0);
-  mySubdivAlgo = new QComboBox(GroupC1);
-  QStringList typesSubdivAlgo;
-  typesSubdivAlgo << tr("GMSH_NONE") << tr("GMSH_ALL_QUADS") << tr("GMSH_ALL_HEXAS");
-  mySubdivAlgo->addItems(typesSubdivAlgo);
-  aGroupLayout->addWidget(mySubdivAlgo, row, 1);
-  row++;
-
   myRemeshAlgo = 0;
   myRemeshPara = 0;
   if (!myIs3D)
   {
+    aGroupLayout->addWidget(new QLabel(tr("GMSH_SUBDIV_ALGO"), GroupC1), row, 0);
+    mySubdivAlgo = new QComboBox(GroupC1);
+    QStringList typesSubdivAlgo;
+    typesSubdivAlgo << tr("GMSH_NONE") << tr("GMSH_ALL_QUADS") << tr("GMSH_ALL_HEXAS");
+    mySubdivAlgo->addItems(typesSubdivAlgo);
+    aGroupLayout->addWidget(mySubdivAlgo, row, 1);
+    row++;
+
     aGroupLayout->addWidget(new QLabel(tr("GMSH_REMESH_ALGO"), GroupC1), row, 0);
     myRemeshAlgo = new QComboBox(GroupC1);
     QStringList typesRemeshAlgo;
@@ -255,6 +254,16 @@ QFrame* GMSHPluginGUI_HypothesisCreator::buildFrame()
     typesRemeshPara << tr("GMSH_HARMONIC") << tr("GMSH_CONFORMAL") << tr("GMSH_RBF_HARMONIC");
     myRemeshPara->addItems(typesRemeshPara);
     aGroupLayout->addWidget(myRemeshPara, row, 1);
+    row++;
+  }
+  else if(myIs3D)
+  {
+    aGroupLayout->addWidget(new QLabel(tr("GMSH_SUBDIV_ALGO"), GroupC1), row, 0);
+    mySubdivAlgo = new QComboBox(GroupC1);
+    QStringList typesSubdivAlgo;
+    typesSubdivAlgo << tr("GMSH_NONE") << tr("GMSH_ALL_QUADS");
+    mySubdivAlgo->addItems(typesSubdivAlgo);
+    aGroupLayout->addWidget(mySubdivAlgo, row, 1);
     row++;
   }
 

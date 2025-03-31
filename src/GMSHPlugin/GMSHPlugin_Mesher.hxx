@@ -47,6 +47,8 @@
 #include "SMESH_Algo.hxx"
 
 #include <map>
+#include <unordered_map>
+#include <unordered_set>
 #include <set>
 #include <unordered_map>
 
@@ -55,7 +57,7 @@ class SMESH_Comment;
 class SMESHDS_Mesh;
 class TopoDS_Shape;
 class GMSHPlugin_Hypothesis;
-
+class StdMeshers_ViscousLayers;
 
 //=============================================================================
 /*!
@@ -70,7 +72,9 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 
   GMSHPlugin_Mesher (SMESH_Mesh* mesh, const TopoDS_Shape& aShape, bool is2D, bool is3D);
 
-  void SetParameters(const GMSHPlugin_Hypothesis*          hyp);
+  void SetParameters(const GMSHPlugin_Hypothesis*    hyp);
+  void SetParameters(const StdMeshers_ViscousLayers* hyp );
+  void SetViscousLayers2DAssigned(bool isAssigned) { _isViscousLayers2D = isAssigned; }
 
   bool Compute3D( std::vector< const SMDS_MeshNode* >& nodeVec, 
                   std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements, 
@@ -81,7 +85,6 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 
   static float DistBoundingBox(const SBoundingBox3d& bounds, const SPoint3& point);
 
-  void Adapt2DQuadMeshAndComputeGmsh3D();
   void FillGeomMapMeshUsing2DMeshIterator( std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements );
   GModel* GetGModel(){ return _gModel;};
   void finalizeGModel();
@@ -105,6 +108,7 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   bool                 _is2d;
   bool                 _is3d;
   int                  _verbLvl;
+  bool                 _isViscousLayers2D;
   GModel*              _gModel;
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
   double               _maxThreads;
@@ -113,28 +117,78 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
   double               _meshCurvatureSize;
 #endif
 
+//================================================================================
+// Structure for mesh geometry elements used to build a new mesh.
+// - Edge: two points - used for 2d mesh generation
+// - Triangle: three points - used for 3d mesh generation
+//================================================================================
+  struct GeomElement
+  {
+    gp_Pnt p1, p2, p3;
+    bool hasP3;
+
+    //edge
+    GeomElement(const gp_Pnt& point1, const gp_Pnt& point2)
+      : p1(point1), p2(point2), p3(), hasP3(false) {}
+
+    //triangle
+    GeomElement(const gp_Pnt& point1, const gp_Pnt& point2, const gp_Pnt& point3)
+      : p1(point1), p2(point2), p3(point3), hasP3(true) {}
+
+    bool isTriangle() const { return hasP3; }
+    bool isEdge() const { return !hasP3; }
+  };
+
+//================================================================================
+// GeomPtr: smart pointer to GeomElement
+// GeomVector: list of elements for a shape
+// ShapeGeomMap: maps TopoDS_Shape to its elements
+//================================================================================
+  using GeomPtr = std::unique_ptr<GeomElement>;
+  using GeomVector = std::vector<GeomPtr>;
+  using ShapeGeomMap = std::unordered_map<TopoDS_Shape, GeomVector>;
+
   std::set<std::string> _compounds;
 
+  std::unordered_set<TopoDS_Shape> _meshedShapes;
   std::unordered_map<int, TopoDS_Shape > _shapeGMSHMap;
   std::map< const MVertex *, const SMDS_MeshNode* > _nodeMap;
   std::map< const MVertex *, const SMDS_MeshNode* > _premeshednodeMap; // used for the SA version
-  SMESHDS_SubMesh* HasSubMesh( const TopoDS_Shape& s );
+  const StdMeshers_ViscousLayers* _viscousLayersHyp;
+  SMESHDS_SubMesh* hasSubMesh( const TopoDS_Shape& s );
 
-  void SetGmshOptions();
-  void CreateGmshCompounds();
-  void FillSMesh(GModel* gModel);
-  void FillSMesh0D(GModel* gModel, SMESHDS_Mesh* meshDS);
-  void FillSMesh1D(GModel* gModel, SMESHDS_Mesh* meshDS);
-  void FillSMesh2D(GModel* gModel, SMESHDS_Mesh* meshDS);
-  void FillSMesh3D(GModel* gModel, SMESHDS_Mesh* meshDS);
-  void HideComputedEntities( GModel* gModel, bool hideAnyway = false );
-  void RestoreVisibility( GModel* gModel );
-  void Set1DSubMeshes( GModel* );
-  void Set2DSubMeshes( GModel* );
+  void setGmshOptions();
+  void createGmshCompounds();
+  void fillSMesh(GModel* gModel);
+  void fillSMesh0D(GModel* gModel, SMESHDS_Mesh* meshDS);
+  void fillSMesh1D(GModel* gModel, SMESHDS_Mesh* meshDS);
+  void fillSMesh2D(GModel* gModel, SMESHDS_Mesh* meshDS, bool allowFaceEdit = false);
+  void fillSMesh3D(GModel* gModel, SMESHDS_Mesh* meshDS);
+  void hideComputedEntities( GModel* gModel, bool hideAnyway = false );
+  void restoreVisibility( GModel* gModel );
+  void set1DSubMeshes( GModel* );
+  void set2DSubMeshes( GModel* );
   void toPython( GModel* );
-  bool IsAllNodesInSameFace( const SMDS_MeshElement* triangle, const TopoDS_Face& F, std::vector<gp_XY>& uvValues );
-  std::map<int,std::vector<std::tuple<smIdType,bool,std::vector<gp_XY>>>> AssociateElementsToFaces( std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements );
-  void Set2DMeshes( std::vector< const SMDS_MeshNode* >& nodeVec, std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements );
+  bool isAllNodesInSameFace( const SMDS_MeshElement* triangle, const TopoDS_Face& F, std::vector<gp_XY>& uvValues );
+  std::map<int,std::vector<std::tuple<smIdType,bool,std::vector<gp_XY>>>> associateElementsToFaces( std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements );
+  void set2DMeshes(std::vector< const SMDS_MeshNode* >& nodeVec,
+                   std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements );
+
+//================================================================================
+  void adapt2DQuadMeshAndComputeGmsh3D();
+
+  void genGMSHMesh(ShapeGeomMap& theShapeGeomMap, 
+                   std::unordered_map<gp_Pnt, const SMDS_MeshNode*> & theUniqBoundNodes,
+                   int meshDimension);
+
+  void prepareTriangles(const std::map<const SMDS_MeshElement*, bool, TIDCompare>& theListElements,
+                        std::unordered_map<gp_Pnt, const SMDS_MeshNode*> & theUniqBoundNodes,
+                        SMESH_MesherHelper& theMeshHelper,
+                        GeomVector& theTriangles);
+
+  bool fill2DViscousLayer();
+  bool fill3DViscousLayerAndQuadAdapt();
+//================================================================================
 
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=3
   void SetMaxThreadsGmsh();

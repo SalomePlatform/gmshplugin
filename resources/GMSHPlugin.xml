@@ -29,11 +29,13 @@
                label-id="Gmsh 1D-2D-3D"
                icon-id="gmsh.png"
                hypos="GMSH_Parameters"
+               opt-hypos="ViscousLayers"
                dim="3"
                support-submeshes="true">
       <python-wrap>
         <algo>GMSH=Tetrahedron(algo=smeshBuilder.GMSH)</algo>
         <hypo>GMSH_Parameters=Parameters()</hypo>
+        <hypo>ViscousLayers=ViscousLayers(SetTotalThickness(),SetNumberLayers(),SetStretchFactor(),SetFaces(1),SetFaces(2),SetMethod(),SetGroupName())</hypo>
       </python-wrap>
     </algorithm>
 
@@ -41,12 +43,14 @@
                label-id="Gmsh 2D"
                icon-id="gmsh.png"
                hypos="GMSH_Parameters_2D"
+               opt-hypos="ViscousLayers2D"
                output="TRIA,QUAD"
                dim="2"
                support-submeshes="true">
       <python-wrap>
         <algo>GMSH_2D=Triangle(algo=smeshBuilder.GMSH_2D)</algo>
         <hypo>GMSH_Parameters_2D=Parameters()</hypo>
+        <hypo>ViscousLayers2D=ViscousLayers2D(SetTotalThickness(),SetNumberLayers(),SetStretchFactor(),SetEdges(1),SetEdges(2),SetGroupName())</hypo>
       </python-wrap>
     </algorithm>
 
@@ -54,6 +58,7 @@
                label-id="Gmsh 3D"
                icon-id="gmsh.png"
                hypos="GMSH_Parameters_3D"
+               opt-hypos="ViscousLayers"
                input="TRIA,QUAD"
                output="TETRA,PYRAMID"
                dim="3"
@@ -64,6 +69,7 @@
       <python-wrap>
         <algo>GMSH_3D=Tetrahedron(algo=smeshBuilder.GMSH_3D)</algo>
         <hypo>GMSH_Parameters_3D=Parameters()</hypo>
+        <hypo>ViscousLayers=ViscousLayers(SetTotalThickness(),SetNumberLayers(),SetStretchFactor(),SetFaces(1),SetFaces(2),SetMethod(),SetGroupName())</hypo>
       </python-wrap>
     </algorithm>
 

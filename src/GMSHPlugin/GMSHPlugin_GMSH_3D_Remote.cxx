@@ -147,7 +147,6 @@ void GMSHPlugin_GMSH_3D_Remote::exportElementOrientation(SMESH_Mesh& aMesh,
   for ( TopExp_Explorer exFa( aShape, TopAbs_FACE ); exFa.More(); exFa.Next())
   {
     const TopoDS_Shape& aShapeFace = exFa.Current();
-    int faceID = aMesh.GetMeshDS()->ShapeToIndex( aShapeFace );
     bool isRev = false;
     if ( helper.NbAncestors(aShapeFace, aMesh, aShape.ShapeType()) > 1 )
       // IsReversedSubMesh() can work wrong on strongly curved faces,

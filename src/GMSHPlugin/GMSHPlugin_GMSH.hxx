@@ -30,6 +30,7 @@
 #include "Utils_SALOME_Exception.hxx"
 
 //class GMSHPlugin_Hypothesis;
+class StdMeshers_ViscousLayers;
 
 class GMSHPLUGIN_EXPORT GMSHPlugin_GMSH: public SMESH_3D_Algo
 {
@@ -54,6 +55,7 @@ public:
 
 protected:
   const SMESHDS_Hypothesis* _hypothesis;
+  const StdMeshers_ViscousLayers* _viscousLayersHyp;
 };
 
 #endif

@@ -48,13 +48,12 @@
 
 #include <map>
 #include <set>
+#include <unordered_map>
 
 class SMESH_Mesh;
 class SMESH_Comment;
 class SMESHDS_Mesh;
 class TopoDS_Shape;
-//class TopTools_DataMapOfShapeShape;
-//class TopTools_IndexedMapOfShape;
 class GMSHPlugin_Hypothesis;
 
 
@@ -82,7 +81,7 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 
   static float DistBoundingBox(const SBoundingBox3d& bounds, const SPoint3& point);
 
-  void FillGMSHMesh();
+  void Adapt2DQuadMeshAndComputeGmsh3D();
   void FillGeomMapMeshUsing2DMeshIterator( std::map<const SMDS_MeshElement*, bool, TIDCompare>& listElements );
   GModel* GetGModel(){ return _gModel;};
   void finalizeGModel();
@@ -116,13 +115,18 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 
   std::set<std::string> _compounds;
 
+  std::unordered_map<int, TopoDS_Shape > _shapeGMSHMap;
   std::map< const MVertex *, const SMDS_MeshNode* > _nodeMap;
   std::map< const MVertex *, const SMDS_MeshNode* > _premeshednodeMap; // used for the SA version
   SMESHDS_SubMesh* HasSubMesh( const TopoDS_Shape& s );
 
   void SetGmshOptions();
   void CreateGmshCompounds();
-  void FillSMesh();
+  void FillSMesh(GModel* gModel);
+  void FillSMesh0D(GModel* gModel, SMESHDS_Mesh* meshDS);
+  void FillSMesh1D(GModel* gModel, SMESHDS_Mesh* meshDS);
+  void FillSMesh2D(GModel* gModel, SMESHDS_Mesh* meshDS);
+  void FillSMesh3D(GModel* gModel, SMESHDS_Mesh* meshDS);
   void HideComputedEntities( GModel* gModel, bool hideAnyway = false );
   void RestoreVisibility( GModel* gModel );
   void Set1DSubMeshes( GModel* );

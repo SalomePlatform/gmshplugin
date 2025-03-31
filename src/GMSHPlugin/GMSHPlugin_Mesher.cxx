@@ -38,6 +38,7 @@
 #include <BRep_Tool.hxx>
 #include <GeomAPI_ProjectPointOnCurve.hxx>
 #include <gp_Pnt.hxx>
+#include <Precision.hxx>
 
 #include <gmsh.h>
 #include <vector>
@@ -477,134 +478,155 @@ void GMSHPlugin_Mesher::FillGeomMapMeshUsing2DMeshIterator( std::map<const SMDS_
  * \brief Initialize GMSH model
  */
  //================================================================================
-void GMSHPlugin_Mesher::FillGMSHMesh()
-{
-  gmsh::initialize();
-  gmsh::model::add("mesh");
-
+ void GMSHPlugin_Mesher::Adapt2DQuadMeshAndComputeGmsh3D()
+ {
   SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
 
-  int aNbOfNodes = 0;
-  int aNbOfLines = 0;
-  std::vector<int> aTrinagle(3, 0);
+  gmsh::initialize();
+  gmsh::model::add("mesh");
+  GModel* gModel_temp = GModel::current();
 
-  const int invalid_ID = -1;
-
-  // typedef for maps
-  typedef map< const SMDS_MeshNode*, int, TIDCompare > TNodeToIDMap;
-  typedef TNodeToIDMap::value_type                     TN2ID;
-  typedef map<std::pair<int, int>, int> TLineToIDMap;
-  TNodeToIDMap aNodeToID;
-  TLineToIDMap aLineToID;
+  std::unordered_map<gp_Pnt, const SMDS_MeshNode*> aUniqBoundNodes;
 
   TopAbs_ShapeEnum aMainType = _mesh->GetShapeToMesh().ShapeType();
   bool aCheckReverse = (aMainType == TopAbs_COMPOUND || aMainType == TopAbs_COMPSOLID);
 
   SMESH_MesherHelper aHelper(*_mesh);
-  SMESH_ProxyMesh::Ptr aProxyMesh(new SMESH_ProxyMesh(*_mesh));
-  if (_mesh->NbQuadrangles() > 0)
+
+  // Iterate over solids in the shape
+  for (TopExp_Explorer exSol(_shape, TopAbs_SOLID); exSol.More(); exSol.Next())
   {
-    StdMeshers_QuadToTriaAdaptor* Adaptor = new StdMeshers_QuadToTriaAdaptor;
-    Adaptor->Compute(*_mesh, _shape, aProxyMesh.get());
-    aProxyMesh.reset(Adaptor);
+    const TopoDS_Shape& anOrigSolid = exSol.Current();
+    SMESH_ProxyMesh::Ptr aProxyMesh(new SMESH_ProxyMesh(*_mesh));
+
+    if (_mesh->NbQuadrangles() > 0)
+    {
+      StdMeshers_QuadToTriaAdaptor* adaptor = new StdMeshers_QuadToTriaAdaptor;
+      adaptor->Compute(*_mesh, anOrigSolid, aProxyMesh.get());
+      aProxyMesh.reset(adaptor);
+    }
+
+    // Collect mesh elements for each face of the solid
+    std::map<const SMDS_MeshElement*, bool, TIDCompare> listElements;
+    for (TopExp_Explorer exFa(anOrigSolid, TopAbs_FACE); exFa.More(); exFa.Next())
+    {
+      const TopoDS_Shape& aShapeFace = exFa.Current();
+      bool isRev = false;
+
+      if (aCheckReverse && aHelper.NbAncestors(aShapeFace, *_mesh, anOrigSolid.ShapeType()) > 1)
+      {
+        // IsReversedSubMesh() can work wrong on strongly curved faces,
+        // so we use it as less as possible
+        isRev = aHelper.IsReversedSubMesh(TopoDS::Face(aShapeFace));
+      }
+
+      const SMESHDS_SubMesh* aSubMeshDSFace = aProxyMesh->GetSubMesh(aShapeFace);
+      if (!aSubMeshDSFace) continue;
+
+      SMDS_ElemIteratorPtr iteratorElem = aSubMeshDSFace->GetElements();
+      while (iteratorElem->more()) // Loop on elements on a geom face
+      {
+        const SMDS_MeshElement* elem = iteratorElem->next();
+        if (elem && elem->NbCornerNodes() == 3) listElements[elem] = isRev;
+      }
+    }
+
+    // Prepare triangles
+    std::vector<std::unique_ptr<std::array<gp_Pnt, 3>>> aTriangles;
+    for (auto const& ls : listElements)
+    {
+      bool hasDegen = false;
+      auto aTriangle = std::make_unique<std::array<gp_Pnt, 3>>();
+
+      for (int iN = 0; iN < 3; ++iN)
+      {
+        const SMDS_MeshNode* aNode = ls.first->GetNode(iN);
+        const int shapeID = aNode->getshapeId();
+
+        if (aNode->GetPosition()->GetTypeOfPosition() == SMDS_TOP_EDGE && aHelper.IsDegenShape(shapeID))
+        {
+          TopoDS_Shape vertex = TopoDS_Iterator(meshDS->IndexToShape(shapeID)).Value();
+          aNode = SMESH_Algo::VertexNode(TopoDS::Vertex(vertex), meshDS);
+          hasDegen = true;
+        }
+        gp_Pnt aCoords(aNode->X(), aNode->Y(), aNode->Z());
+        (*aTriangle)[ls.second ? 2 - iN : iN] = aCoords;
+        aUniqBoundNodes.insert(std::make_pair(aCoords, aNode));
+      }
+
+      // Skip degenerate triangles
+      if (hasDegen && ((*aTriangle)[0].IsEqual((*aTriangle)[1], Precision::Confusion()) ||
+                      (*aTriangle)[0].IsEqual((*aTriangle)[2], Precision::Confusion()) ||
+                      (*aTriangle)[2].IsEqual((*aTriangle)[1], Precision::Confusion())))
+      {
+        continue;
+      }
+      aTriangles.push_back(std::move(aTriangle));
+    }
+
+    // Create GMSH geometry from triangles
+    std::unordered_map<gp_Pnt, int> aUniqPoints;
+    std::map<std::pair<int, int>, int> aUniqLines;
+    std::vector<int> aSurfTags;
+
+    auto getPointIndex = [&](const gp_Pnt& p) -> int {
+      if (aUniqPoints.find(p) == aUniqPoints.end())
+        aUniqPoints[p] = gmsh::model::geo::addPoint(p.X(), p.Y(), p.Z());
+
+      return aUniqPoints[p];
+    };
+
+    for (const auto& triangPtr : aTriangles)
+    {
+      const auto& triang = *triangPtr;
+      int v1 = getPointIndex(triang[0]);
+      int v2 = getPointIndex(triang[1]);
+      int v3 = getPointIndex(triang[2]);
+
+      int l1 = gmsh::model::geo::addLine(v1, v2);
+      int l2 = gmsh::model::geo::addLine(v2, v3);
+      int l3 = gmsh::model::geo::addLine(v3, v1);
+
+      int aLoop = gmsh::model::geo::addCurveLoop({l1, l2, l3});
+      int aSurf = gmsh::model::geo::addPlaneSurface({aLoop});
+      aSurfTags.push_back(aSurf);
+    }
+
+    int aSurfLoop = gmsh::model::geo::addSurfaceLoop(aSurfTags);
+    int aVolume = gmsh::model::geo::addVolume({aSurfLoop});
+    _shapeGMSHMap.insert(std::make_pair(aVolume, anOrigSolid));
   }
 
-  std::map<const SMDS_MeshElement*, bool, TIDCompare> listElements;
-  for (TopExp_Explorer exFa(_shape, TopAbs_FACE); exFa.More(); exFa.Next())
+  gmsh::model::geo::synchronize();
+
+  std::vector<std::pair<int, int>> entities;
+  gmsh::model::getEntities(entities, 1);
+  for (const auto& entity : entities) 
   {
-    const TopoDS_Shape& aShapeFace = exFa.Current();
-    int faceID = meshDS->ShapeToIndex(aShapeFace);
-    bool isRev = false;
-    if (aCheckReverse && aHelper.NbAncestors(aShapeFace, *_mesh, _shape.ShapeType()) > 1)
-      // IsReversedSubMesh() can work wrong on strongly curved faces,
-      // so we use it as less as possible
-      isRev = aHelper.IsReversedSubMesh(TopoDS::Face(aShapeFace));
+    gmsh::model::mesh::setTransfiniteCurve(entity.second, 2);
+  }
 
-    const SMESHDS_SubMesh* aSubMeshDSFace = aProxyMesh->GetSubMesh(aShapeFace);
-    if (!aSubMeshDSFace) 
-      continue;
-    SMDS_ElemIteratorPtr iteratorElem = aSubMeshDSFace->GetElements();
-    if (aHelper.IsQuadraticSubMesh(_shape) &&
-      dynamic_cast<const SMESH_ProxyMesh::SubMesh*>(aSubMeshDSFace))
-    {
-      // add medium nodes of proxy triangles to helper
-      while (iteratorElem->more())
-        aHelper.AddTLinks(static_cast<const SMDS_MeshFace*>(iteratorElem->next()));
+  //compute 3d mesh with GMSH
+  gmsh::model::mesh::generate(3);
 
-      iteratorElem = aSubMeshDSFace->GetElements();
-    }
-    while (iteratorElem->more()) // loop on elements on a geom face
+  //fill _nodeMap with boundary nodes(which are already in smesh)
+  for ( GModel::viter it = gModel_temp->firstVertex(); it != gModel_temp->lastVertex(); ++it)
+  {
+    GVertex *gVertex = *it;
+    for (MVertex* v : gVertex->mesh_vertices) 
     {
-      // check mesh face
-      const SMDS_MeshElement* elem = iteratorElem->next();
-      if (!elem)
-        return;
-      if (elem->NbCornerNodes() != 3)
-        return;
-      listElements[elem] = isRev;
+      gp_Pnt aCoords(v->x(), v->y(), v->z());
+      if (aUniqBoundNodes.find(aCoords) != aUniqBoundNodes.end())
+      {
+        _nodeMap[v] = aUniqBoundNodes[aCoords];
+      }
     }
   }
 
-  for (auto const& ls : listElements)
-  {
-    // Add nodes of triangles and triangles them-selves to netgen mesh
-    // add three nodes of
-    bool hasDegen = false;
-    for (int iN = 0; iN < 3; ++iN)
-    {
-      const SMDS_MeshNode* aNode = ls.first->GetNode(iN);
-      const int shapeID = aNode->getshapeId();
-      if (aNode->GetPosition()->GetTypeOfPosition() == SMDS_TOP_EDGE &&
-        aHelper.IsDegenShape(shapeID))
-      {
-        // ignore all nodes on degeneraged edge and use node on its vertex instead
-        TopoDS_Shape vertex = TopoDS_Iterator(meshDS->IndexToShape(shapeID)).Value();
-        aNode = SMESH_Algo::VertexNode(TopoDS::Vertex(vertex), meshDS);
-        hasDegen = true;
-      }
-      int& ngID = aNodeToID.insert(TN2ID(aNode, invalid_ID)).first->second;
-      if (ngID == invalid_ID)
-      {
-        ngID = ++aNbOfNodes;
-        gmsh::model::occ::addPoint(aNode->X(), aNode->Y(), aNode->Z(), 1.e-2, ngID);
-      }
-      aTrinagle[ls.second ? 2 - iN : iN] = ngID;
-    }
-    // add triangle
-    if (hasDegen && (aTrinagle[0] == aTrinagle[1] ||
-      aTrinagle[0] == aTrinagle[2] ||
-      aTrinagle[2] == aTrinagle[1]))      
-        continue;    
+  FillSMesh3D(gModel_temp, meshDS);
 
-
-    std::vector<int> LinesID(3, 0);
-    for (int anIndex = 0; anIndex < 3; ++anIndex)
-    {
-      int aNextIndex = (anIndex + 1) % 3;
-      if (aLineToID.find({ aTrinagle[anIndex], aTrinagle[aNextIndex] }) == aLineToID.end()
-        && aLineToID.find({ aTrinagle[aNextIndex], aTrinagle[anIndex] }) == aLineToID.end())
-      {
-        LinesID[anIndex] = aLineToID.insert({ { aTrinagle[aNextIndex], aTrinagle[anIndex] }, ++aNbOfLines }).first->second;
-        gmsh::model::occ::addLine(aTrinagle[anIndex], aTrinagle[aNextIndex], LinesID[anIndex]);
-      }
-      else
-      {
-        LinesID[anIndex] = aLineToID.find({ aTrinagle[anIndex], aTrinagle[aNextIndex] })->second;
-        if (LinesID[anIndex] == 0)
-          LinesID[anIndex] = aLineToID.find({ aTrinagle[aNextIndex], aTrinagle[anIndex] })->second;
-
-      }
-    }
-    if (!aProxyMesh->IsTemporary(ls.first))
-      swap(aTrinagle[1], aTrinagle[2]);
-
-    gmsh::model::occ::addCurveLoop(LinesID);
-  }
-
-  // Generate 1D and 2D mesh
-  _gModel->mesh( /*dim=*/ 1);
-  Set1DSubMeshes(_gModel);
-  _gModel->mesh( /*dim=*/ 2);
+  //does not really work as expected, it is only possible to work through api with models that were added by gmsh::model::add("mesh");
+  GModel::setCurrent(_gModel); 
 }
 
 //================================================================================
@@ -824,7 +846,6 @@ void GMSHPlugin_Mesher::SetCompoundMeshVisibility()
     }
   }
 
-
   // Loop over all edges, if the  edge belongs to a compound entry then
   // for all (boundary) vertices whithin the  edge visibility is set to
   // 0, if the edge doesn't belong to a  compound entry then visibility
@@ -899,16 +920,16 @@ SMESHDS_SubMesh* GMSHPlugin_Mesher::HasSubMesh( const TopoDS_Shape& s )
 
 //================================================================================
 /*!
- * \brief Write mesh from GModel instance to SMESH instance
+ * \brief Fill the mesh with 0D elements
  */
 //================================================================================
-
-void GMSHPlugin_Mesher::FillSMesh()
+void GMSHPlugin_Mesher::FillSMesh0D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
 {
-  SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
+  if(!theGModel)
+    return;
 
   // ADD 0D ELEMENTS
-  for ( GModel::viter it = _gModel->firstVertex(); it != _gModel->lastVertex(); ++it)
+  for ( GModel::viter it = theGModel->firstVertex(); it != theGModel->lastVertex(); ++it)
   {
     GVertex *gVertex = *it;
 
@@ -936,8 +957,8 @@ void GMSHPlugin_Mesher::FillSMesh()
         }
         else
         {
-          SMDS_MeshNode *node = meshDS->AddNode( v->x(),v->y(),v->z() );
-          meshDS->SetNodeOnVertex( node, topoVertex );
+          SMDS_MeshNode *node = theMeshDS->AddNode( v->x(),v->y(),v->z() );
+          theMeshDS->SetNodeOnVertex( node, topoVertex );
           _nodeMap.insert({ v, node });
         }
       }
@@ -955,9 +976,20 @@ void GMSHPlugin_Mesher::FillSMesh()
     //   meshDS->SetMeshElementOnShape(zeroDElement, topoVertex);
     // }
   }
+}
+
+//================================================================================
+/*!
+ * \brief Fill the mesh with 1D elements
+ */
+//================================================================================
+void GMSHPlugin_Mesher::FillSMesh1D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
+{
+  if(!theGModel)
+    return;
 
   // ADD 1D ELEMENTS
-  for(GModel::eiter it = _gModel->firstEdge(); it != _gModel->lastEdge(); ++it)
+  for(GModel::eiter it = theGModel->firstEdge(); it != theGModel->lastEdge(); ++it)
   {
     GEdge *gEdge = *it;
 
@@ -989,7 +1021,7 @@ void GMSHPlugin_Mesher::FillSMesh()
       MVertex *v = gEdge->mesh_vertices[i];
       if ( v->getIndex() >= 0 )
       {
-        SMDS_MeshNode *node = meshDS->AddNode( v->x(),v->y(),v->z() );
+        SMDS_MeshNode *node = theMeshDS->AddNode( v->x(),v->y(),v->z() );
 
         if ( isCompound )
           topoEdge = TopoDS::Edge( getShapeAtPoint( v->point(), topoEdges ));
@@ -1012,21 +1044,19 @@ void GMSHPlugin_Mesher::FillSMesh()
           if ( proj.NbPoints() > 0 )
             pa = (double)proj.LowerDistanceParameter();
 
-          meshDS->SetNodeOnEdge( node, topoEdge, pa );
+          theMeshDS->SetNodeOnEdge( node, topoEdge, pa );
         }
         else
         {
-          meshDS->SetNodeOnEdge( node, topoEdge );
+          theMeshDS->SetNodeOnEdge( node, topoEdge );
         }
         //END on BLSURFPlugin_BLSURF
-
-
         _nodeMap.insert({ v, node });
       }
     }
   }
 
-  for ( GModel::eiter it = _gModel->firstEdge(); it != _gModel->lastEdge(); ++it )
+  for ( GModel::eiter it = theGModel->firstEdge(); it != theGModel->lastEdge(); ++it )
   {
     GEdge *gEdge = *it;
     if ( gEdge->getVisibility() == 0) // belongs to a compound
@@ -1054,7 +1084,7 @@ void GMSHPlugin_Mesher::FillSMesh()
       {
         if ( verts[j]->onWhat()->getVisibility() == 0 )
         {
-          SMDS_MeshNode *node = meshDS->AddNode(verts[j]->x(),verts[j]->y(),verts[j]->z() );
+          SMDS_MeshNode *node = theMeshDS->AddNode(verts[j]->x(),verts[j]->y(),verts[j]->z() );
 
           gp_Pnt point3D( verts[j]->x(),verts[j]->y(),verts[j]->z() );
           Standard_Real p0 = 0.0;
@@ -1073,11 +1103,11 @@ void GMSHPlugin_Mesher::FillSMesh()
             if ( proj.NbPoints() > 0 )
               pa = (double)proj.LowerDistanceParameter();
 
-            meshDS->SetNodeOnEdge( node, topoEdge, pa );
+              theMeshDS->SetNodeOnEdge( node, topoEdge, pa );
           }
           else
           {
-            meshDS->SetNodeOnEdge( node, topoEdge );
+            theMeshDS->SetNodeOnEdge( node, topoEdge );
           }
 
           verts[j]->setEntity(gEdge);
@@ -1089,11 +1119,11 @@ void GMSHPlugin_Mesher::FillSMesh()
       switch (verts.size())
       {
         case 2:
-          edge = meshDS->AddEdge(Node( verts[0]),
+          edge = theMeshDS->AddEdge(Node( verts[0]),
                                  Node( verts[1]));
           break;
         case 3:
-          edge = meshDS->AddEdge(Node( verts[0]),
+          edge = theMeshDS->AddEdge(Node( verts[0]),
                                  Node( verts[1]),
                                  Node( verts[2]));
           break;
@@ -1104,12 +1134,23 @@ void GMSHPlugin_Mesher::FillSMesh()
       if ( isCompound )
         topoEdge = TopoDS::Edge( getShapeAtPoint( e->barycenter(), topoEdges ));
 
-      meshDS->SetMeshElementOnShape( edge, topoEdge );
+        theMeshDS->SetMeshElementOnShape( edge, topoEdge );
     }
   }
+}
+
+//================================================================================
+/*!
+ * \brief Fill the mesh with 2D elements
+ */
+//================================================================================
+void GMSHPlugin_Mesher::FillSMesh2D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
+{
+  if(!theGModel)
+    return;
 
   // ADD 2D ELEMENTS
-  for ( GModel::fiter it = _gModel->firstFace(); it != _gModel->lastFace(); ++it)
+  for ( GModel::fiter it = theGModel->firstFace(); it != theGModel->lastFace(); ++it)
   {
     GFace *gFace = *it;
 
@@ -1155,18 +1196,18 @@ void GMSHPlugin_Mesher::FillSMesh()
         double U,V;
         gFace->XYZtoUV( v->x(),v->y(),v->z(), U, V, 1.0 );
 
-        SMDS_MeshNode *node = meshDS->AddNode( v->x(),v->y(),v->z() );
+        SMDS_MeshNode *node = theMeshDS->AddNode( v->x(),v->y(),v->z() );
 
         if ( isCompound )
           topoFace = TopoDS::Face( getShapeAtPoint( v->point(), topoFaces ));
 
-        meshDS->SetNodeOnFace( node, topoFace, U, V );
+        theMeshDS->SetNodeOnFace( node, topoFace, U, V );
         _nodeMap.insert({ v, node });
       }
     }
   }
 
-  for ( GModel::fiter it = _gModel->firstFace(); it != _gModel->lastFace(); ++it)
+  for ( GModel::fiter it = theGModel->firstFace(); it != theGModel->lastFace(); ++it)
   {
     GFace *gFace = *it;
 
@@ -1206,10 +1247,10 @@ void GMSHPlugin_Mesher::FillSMesh()
       {
         if(verts[j]->onWhat()->getVisibility() == 0)
         {
-          SMDS_MeshNode *node = meshDS->AddNode(verts[j]->x(),verts[j]->y(),verts[j]->z());
+          SMDS_MeshNode *node = theMeshDS->AddNode(verts[j]->x(),verts[j]->y(),verts[j]->z());
           double U,V;
           gFace->XYZtoUV( verts[j]->x(),verts[j]->y(),verts[j]->z(), U, V, 1.0 );
-          meshDS->SetNodeOnFace( node, topoFace, U, V );
+          theMeshDS->SetNodeOnFace( node, topoFace, U, V );
           _nodeMap.insert({ verts[j], node });
           verts[j]->setEntity(gFace);
         }
@@ -1217,44 +1258,44 @@ void GMSHPlugin_Mesher::FillSMesh()
       switch (verts.size())
       {
         case 3:
-          face = meshDS->AddFace(Node( verts[0]),
-                                 Node( verts[1]),
-                                 Node( verts[2]));
+          face = theMeshDS->AddFace(Node( verts[0]),
+                                    Node( verts[1]),
+                                    Node( verts[2]));
           break;
         case 4:
-          face = meshDS->AddFace(Node( verts[0]),
-                                 Node( verts[1]),
-                                 Node( verts[2]),
-                                 Node( verts[3]));
+          face = theMeshDS->AddFace(Node( verts[0]),
+                                    Node( verts[1]),
+                                    Node( verts[2]),
+                                    Node( verts[3]));
           break;
         case 6:
-          face = meshDS->AddFace(Node( verts[0]),
-                                 Node( verts[1]),
-                                 Node( verts[2]),
-                                 Node( verts[3]),
-                                 Node( verts[4]),
-                                 Node( verts[5]));
+          face = theMeshDS->AddFace(Node( verts[0]),
+                                    Node( verts[1]),
+                                    Node( verts[2]),
+                                    Node( verts[3]),
+                                    Node( verts[4]),
+                                    Node( verts[5]));
           break;
         case 8:
-          face = meshDS->AddFace(Node( verts[0]),
-                                 Node( verts[1]),
-                                 Node( verts[2]),
-                                 Node( verts[3]),
-                                 Node( verts[4]),
-                                 Node( verts[5]),
-                                 Node( verts[6]),
-                                 Node( verts[7]));
+          face = theMeshDS->AddFace(Node( verts[0]),
+                                    Node( verts[1]),
+                                    Node( verts[2]),
+                                    Node( verts[3]),
+                                    Node( verts[4]),
+                                    Node( verts[5]),
+                                    Node( verts[6]),
+                                    Node( verts[7]));
           break;
         case 9:
-          face = meshDS->AddFace(Node( verts[0]),
-                                 Node( verts[1]),
-                                 Node( verts[2]),
-                                 Node( verts[3]),
-                                 Node( verts[4]),
-                                 Node( verts[5]),
-                                 Node( verts[6]),
-                                 Node( verts[7]),
-                                 Node( verts[8]));
+          face = theMeshDS->AddFace(Node( verts[0]),
+                                    Node( verts[1]),
+                                    Node( verts[2]),
+                                    Node( verts[3]),
+                                    Node( verts[4]),
+                                    Node( verts[5]),
+                                    Node( verts[6]),
+                                    Node( verts[7]),
+                                    Node( verts[8]));
           break;
         default:
           ASSERT(false);
@@ -1264,19 +1305,39 @@ void GMSHPlugin_Mesher::FillSMesh()
       if ( isCompound )
         topoFace = TopoDS::Face( getShapeAtPoint( e->barycenter(), topoFaces ));
 
-      meshDS->SetMeshElementOnShape(face, topoFace);
+      theMeshDS->SetMeshElementOnShape(face, topoFace);
     }
   }
+}
+
+//================================================================================
+/*!
+ * \brief Fill the mesh with 3D elements
+ */
+//================================================================================
+void GMSHPlugin_Mesher::FillSMesh3D(GModel* theGModel, SMESHDS_Mesh* theMeshDS)
+{
+  if(!theGModel)
+    return;
 
   // ADD 3D ELEMENTS
-  for ( GModel::riter it = _gModel->firstRegion(); it != _gModel->lastRegion(); ++it)
+  for ( GModel::riter it = theGModel->firstRegion(); it != theGModel->lastRegion(); ++it)
   {
     GRegion *gRegion = *it;
     if (gRegion->getVisibility() == 0)
       continue;
 
     // GET topoSolid CORRESPONDING TO gRegion
-    TopoDS_Solid topoSolid = *((TopoDS_Solid*)gRegion->getNativePtr());
+    TopoDS_Solid topoSolid;
+    int tag = gRegion->tag();
+    if(_shapeGMSHMap.find(tag) != _shapeGMSHMap.end())
+    {
+      topoSolid = TopoDS::Solid(_shapeGMSHMap[tag]);
+    }
+    else
+    {
+      topoSolid = *((TopoDS_Solid*)gRegion->getNativePtr());
+    }
 
     // FILL SMESH FOR topoSolid
 
@@ -1286,8 +1347,8 @@ void GMSHPlugin_Mesher::FillSMesh()
       MVertex *v = gRegion->mesh_vertices[i];
       if(v->getIndex() >= 0)
       {
-        SMDS_MeshNode *node = meshDS->AddNode( v->x(),v->y(),v->z() );
-        meshDS->SetNodeInVolume( node, topoSolid );
+        SMDS_MeshNode *node = theMeshDS->AddNode( v->x(),v->y(),v->z() );
+        theMeshDS->SetNodeInVolume( node, topoSolid );
         _nodeMap.insert({ v, node });
       }
     }
@@ -1302,172 +1363,196 @@ void GMSHPlugin_Mesher::FillSMesh()
       SMDS_MeshVolume* volume = 0;
       switch (verts.size()){
       case 4:
-        volume = meshDS->AddVolume(Node( verts[0]),
-                                   Node( verts[2]),
-                                   Node( verts[1]),
-                                   Node( verts[3]));
+        volume = theMeshDS->AddVolume(Node( verts[0]),
+                                      Node( verts[2]),
+                                      Node( verts[1]),
+                                      Node( verts[3]));
         break;
       case 5:
-        volume = meshDS->AddVolume(Node( verts[0]),
-                                   Node( verts[3]),
-                                   Node( verts[2]),
-                                   Node( verts[1]),
-                                   Node( verts[4]));
+        volume = theMeshDS->AddVolume(Node( verts[0]),
+                                      Node( verts[3]),
+                                      Node( verts[2]),
+                                      Node( verts[1]),
+                                      Node( verts[4]));
         break;
       case 6:
-        volume = meshDS->AddVolume(Node( verts[0]),
-                                   Node( verts[2]),
-                                   Node( verts[1]),
-                                   Node( verts[3]),
-                                   Node( verts[5]),
-                                   Node( verts[4]));
+        volume = theMeshDS->AddVolume(Node( verts[0]),
+                                      Node( verts[2]),
+                                      Node( verts[1]),
+                                      Node( verts[3]),
+                                      Node( verts[5]),
+                                      Node( verts[4]));
         break;
       case 8:
-        volume = meshDS->AddVolume(Node( verts[0]),
-                                   Node( verts[3]),
-                                   Node( verts[2]),
-                                   Node( verts[1]),
-                                   Node( verts[4]),
-                                   Node( verts[7]),
-                                   Node( verts[6]),
-                                   Node( verts[5]));
+        volume = theMeshDS->AddVolume(Node( verts[0]),
+                                      Node( verts[3]),
+                                      Node( verts[2]),
+                                      Node( verts[1]),
+                                      Node( verts[4]),
+                                      Node( verts[7]),
+                                      Node( verts[6]),
+                                      Node( verts[5]));
         break;
       case 10:
-        volume = meshDS->AddVolume(Node( verts[0]),
-                                   Node( verts[2]),
-                                   Node( verts[1]),
-                                   Node( verts[3]),
-                                   Node( verts[6]),
-                                   Node( verts[5]),
-                                   Node( verts[4]),
-                                   Node( verts[7]),
-                                   Node( verts[8]),
-                                   Node( verts[9]));
+        volume = theMeshDS->AddVolume(Node( verts[0]),
+                                      Node( verts[2]),
+                                      Node( verts[1]),
+                                      Node( verts[3]),
+                                      Node( verts[6]),
+                                      Node( verts[5]),
+                                      Node( verts[4]),
+                                      Node( verts[7]),
+                                      Node( verts[8]),
+                                      Node( verts[9]));
         break;
       case 13:
-        volume = meshDS->AddVolume(Node( verts[0] ),
-                                   Node( verts[3] ),
-                                   Node( verts[2] ),
-                                   Node( verts[1] ),
-                                   Node( verts[4] ),
-                                   Node( verts[6] ),
-                                   Node( verts[10] ),
-                                   Node( verts[8] ),
-                                   Node( verts[5] ),
-                                   Node( verts[7] ),
-                                   Node( verts[12] ),
-                                   Node( verts[11] ),
-                                   Node( verts[9]));
+        volume = theMeshDS->AddVolume(Node( verts[0] ),
+                                      Node( verts[3] ),
+                                      Node( verts[2] ),
+                                      Node( verts[1] ),
+                                      Node( verts[4] ),
+                                      Node( verts[6] ),
+                                      Node( verts[10] ),
+                                      Node( verts[8] ),
+                                      Node( verts[5] ),
+                                      Node( verts[7] ),
+                                      Node( verts[12] ),
+                                      Node( verts[11] ),
+                                      Node( verts[9]));
         break;
       case 14: // same as case 13, because no pyra14 in smesh
-        volume = meshDS->AddVolume(Node( verts[0] ),
-                                   Node( verts[3] ),
-                                   Node( verts[2] ),
-                                   Node( verts[1] ),
-                                   Node( verts[4] ),
-                                   Node( verts[6] ),
-                                   Node( verts[10] ),
-                                   Node( verts[8] ),
-                                   Node( verts[5] ),
-                                   Node( verts[7] ),
-                                   Node( verts[12] ),
-                                   Node( verts[11] ),
-                                   Node( verts[9]));
+        volume = theMeshDS->AddVolume(Node( verts[0] ),
+                                      Node( verts[3] ),
+                                      Node( verts[2] ),
+                                      Node( verts[1] ),
+                                      Node( verts[4] ),
+                                      Node( verts[6] ),
+                                      Node( verts[10] ),
+                                      Node( verts[8] ),
+                                      Node( verts[5] ),
+                                      Node( verts[7] ),
+                                      Node( verts[12] ),
+                                      Node( verts[11] ),
+                                      Node( verts[9]));
         break;
       case 15:
-        volume = meshDS->AddVolume(Node( verts[0] ),
-                                   Node( verts[2] ),
-                                   Node( verts[1] ),
-                                   Node( verts[3] ),
-                                   Node( verts[5] ),
-                                   Node( verts[4] ),
-                                   Node( verts[7] ),
-                                   Node( verts[9] ),
-                                   Node( verts[6] ),
-                                   Node( verts[13] ),
-                                   Node( verts[14] ),
-                                   Node( verts[12] ),
-                                   Node( verts[8] ),
-                                   Node( verts[11] ),
-                                   Node( verts[10]));
+        volume = theMeshDS->AddVolume(Node( verts[0] ),
+                                      Node( verts[2] ),
+                                      Node( verts[1] ),
+                                      Node( verts[3] ),
+                                      Node( verts[5] ),
+                                      Node( verts[4] ),
+                                      Node( verts[7] ),
+                                      Node( verts[9] ),
+                                      Node( verts[6] ),
+                                      Node( verts[13] ),
+                                      Node( verts[14] ),
+                                      Node( verts[12] ),
+                                      Node( verts[8] ),
+                                      Node( verts[11] ),
+                                      Node( verts[10]));
         break;
       case 18: // same as case 15, because no penta18 in smesh
-        volume = meshDS->AddVolume(Node( verts[0] ),
-                                   Node( verts[2] ),
-                                   Node( verts[1] ),
-                                   Node( verts[3] ),
-                                   Node( verts[5] ),
-                                   Node( verts[4] ),
-                                   Node( verts[7] ),
-                                   Node( verts[9] ),
-                                   Node( verts[6] ),
-                                   Node( verts[13] ),
-                                   Node( verts[14] ),
-                                   Node( verts[12] ),
-                                   Node( verts[8] ),
-                                   Node( verts[11] ),
-                                   Node( verts[10]));
+        volume = theMeshDS->AddVolume(Node( verts[0] ),
+                                      Node( verts[2] ),
+                                      Node( verts[1] ),
+                                      Node( verts[3] ),
+                                      Node( verts[5] ),
+                                      Node( verts[4] ),
+                                      Node( verts[7] ),
+                                      Node( verts[9] ),
+                                      Node( verts[6] ),
+                                      Node( verts[13] ),
+                                      Node( verts[14] ),
+                                      Node( verts[12] ),
+                                      Node( verts[8] ),
+                                      Node( verts[11] ),
+                                      Node( verts[10]));
         break;
       case 20:
-        volume = meshDS->AddVolume(Node( verts[0] ),
-                                   Node( verts[3] ),
-                                   Node( verts[2] ),
-                                   Node( verts[1] ),
-                                   Node( verts[4] ),
-                                   Node( verts[7] ),
-                                   Node( verts[6] ),
-                                   Node( verts[5] ),
-                                   Node( verts[9] ),
-                                   Node( verts[13] ),
-                                   Node( verts[11] ),
-                                   Node( verts[8] ),
-                                   Node( verts[17] ),
-                                   Node( verts[19] ),
-                                   Node( verts[18] ),
-                                   Node( verts[16] ),
-                                   Node( verts[10] ),
-                                   Node( verts[15] ),
-                                   Node( verts[14] ),
-                                   Node( verts[12]));
+        volume = theMeshDS->AddVolume(Node( verts[0] ),
+                                      Node( verts[3] ),
+                                      Node( verts[2] ),
+                                      Node( verts[1] ),
+                                      Node( verts[4] ),
+                                      Node( verts[7] ),
+                                      Node( verts[6] ),
+                                      Node( verts[5] ),
+                                      Node( verts[9] ),
+                                      Node( verts[13] ),
+                                      Node( verts[11] ),
+                                      Node( verts[8] ),
+                                      Node( verts[17] ),
+                                      Node( verts[19] ),
+                                      Node( verts[18] ),
+                                      Node( verts[16] ),
+                                      Node( verts[10] ),
+                                      Node( verts[15] ),
+                                      Node( verts[14] ),
+                                      Node( verts[12]));
         break;
       case 27:
-        volume = meshDS->AddVolume(Node( verts[0] ),
-                                   Node( verts[3] ),
-                                   Node( verts[2] ),
-                                   Node( verts[1] ),
-                                   Node( verts[4] ),
-                                   Node( verts[7] ),
-                                   Node( verts[6] ),
-                                   Node( verts[5] ),
-                                   Node( verts[9] ),
-                                   Node( verts[13] ),
-                                   Node( verts[11] ),
-                                   Node( verts[8] ),
-                                   Node( verts[17] ),
-                                   Node( verts[19] ),
-                                   Node( verts[18] ),
-                                   Node( verts[16] ),
-                                   Node( verts[10] ),
-                                   Node( verts[15] ),
-                                   Node( verts[14] ),
-                                   Node( verts[12] ),
-                                   Node( verts[20] ),
-                                   Node( verts[22] ),
-                                   Node( verts[24] ),
-                                   Node( verts[23] ),
-                                   Node( verts[21] ),
-                                   Node( verts[25] ),
-                                   Node( verts[26] ));
+        volume = theMeshDS->AddVolume(Node( verts[0] ),
+                                      Node( verts[3] ),
+                                      Node( verts[2] ),
+                                      Node( verts[1] ),
+                                      Node( verts[4] ),
+                                      Node( verts[7] ),
+                                      Node( verts[6] ),
+                                      Node( verts[5] ),
+                                      Node( verts[9] ),
+                                      Node( verts[13] ),
+                                      Node( verts[11] ),
+                                      Node( verts[8] ),
+                                      Node( verts[17] ),
+                                      Node( verts[19] ),
+                                      Node( verts[18] ),
+                                      Node( verts[16] ),
+                                      Node( verts[10] ),
+                                      Node( verts[15] ),
+                                      Node( verts[14] ),
+                                      Node( verts[12] ),
+                                      Node( verts[20] ),
+                                      Node( verts[22] ),
+                                      Node( verts[24] ),
+                                      Node( verts[23] ),
+                                      Node( verts[21] ),
+                                      Node( verts[25] ),
+                                      Node( verts[26] ));
         break;
       default:
         ASSERT(false);
         continue;
       }
-      meshDS->SetMeshElementOnShape(volume, topoSolid);
+      theMeshDS->SetMeshElementOnShape(volume, topoSolid);
     }
   }
+}
 
-  //return 0;
+//================================================================================
+/*!
+ * \brief Write mesh from GModel instance to SMESH instance
+ */
+//================================================================================
+
+void GMSHPlugin_Mesher::FillSMesh(GModel* gModel)
+{
+  if(!gModel)
+    return;
+
+  SMESHDS_Mesh* meshDS = _mesh->GetMeshDS();
+
+  // ADD 0D ELEMENTS
+  FillSMesh0D(gModel, meshDS);
+
+  // ADD 1D ELEMENTS
+  FillSMesh1D(gModel, meshDS);
+
+  // ADD 2D ELEMENTS
+  FillSMesh2D(gModel, meshDS);
+
+  // ADD 3D ELEMENTS
+  FillSMesh3D(gModel, meshDS);
 }
 
 //================================================================================
@@ -1603,7 +1688,7 @@ bool GMSHPlugin_Mesher::Compute3D( std::vector< const SMDS_MeshNode* >& nodeVec,
   }
   
   if ( addElements )
-    FillSMesh();
+    FillSMesh(_gModel);
   MESSAGE("GMSHPlugin_Mesher::Compute3D:End");
   return err;
 }
@@ -1644,24 +1729,29 @@ bool GMSHPlugin_Mesher::Compute()
   if (_compounds.size() > 0) CreateGmshCompounds();
   try
   {
-
     HideComputedEntities(_gModel);
     if (_is3d)
     {
-      FillGMSHMesh();
-      Set2DSubMeshes(_gModel);
-      _gModel->mesh( /*dim=*/ 3);
+      if (_mesh->NbQuadrangles() > 0)
+      {
+        Adapt2DQuadMeshAndComputeGmsh3D();
+      }
+      else
+      {
+        _gModel->mesh( /*dim=*/ 1);
+        Set1DSubMeshes(_gModel);
+        _gModel->mesh( /*dim=*/ 2);
+        Set2DSubMeshes(_gModel);
+        _gModel->mesh( /*dim=*/ 3);
+      }
     }
     else
     {
       //CTX::instance()->mesh.maxNumThreads1D=1;
       _gModel->mesh( /*dim=*/ 1);
-
       Set1DSubMeshes(_gModel);
 
-      //_gModel->writeUNV("/tmp/1D.unv", 1,0,0);
       //CTX::instance()->mesh.maxNumThreads2D=1;
-
       _gModel->mesh( /*dim=*/ 2);
 
       if (!_is2d)
@@ -1669,7 +1759,6 @@ bool GMSHPlugin_Mesher::Compute()
         Set2DSubMeshes(_gModel);
 
         //CTX::instance()->mesh.maxNumThreads3D=1;
-
         _gModel->mesh( /*dim=*/ 3);
       }
       RestoreVisibility(_gModel);
@@ -1697,7 +1786,7 @@ bool GMSHPlugin_Mesher::Compute()
     if (_compounds.size() > 0)
       SetCompoundMeshVisibility();
 #endif
-    FillSMesh();
+    FillSMesh(_gModel);
   }
   GmshSetMessageHandler(nullptr);
   delete _gModel;

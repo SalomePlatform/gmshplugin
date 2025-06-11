@@ -37,6 +37,13 @@
 
 //CAS
 #include <BRep_Tool.hxx>
+#include <BRep_Builder.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Wire.hxx>
 #include <GeomAPI_ProjectPointOnCurve.hxx>
 #include <gp_Pnt.hxx>
 #include <Precision.hxx>
@@ -556,7 +563,9 @@ void GMSHPlugin_Mesher::adapt2DQuadMeshAndComputeGmsh3D()
     prepareTriangles(listElements, aUniqBoundNodes, aHelper, aTriangles);
     solidsToTriangles[anOrigSolid] = std::move(aTriangles);
   }
-  genGMSHMesh(solidsToTriangles, aUniqBoundNodes, 3);
+
+  std::vector<TopoDS_Shape> meshedShapes;
+  genGMSHMesh(aUniqBoundNodes, meshedShapes, 3, &solidsToTriangles);
 }
 
 //================================================================================
@@ -565,9 +574,11 @@ void GMSHPlugin_Mesher::adapt2DQuadMeshAndComputeGmsh3D()
  */
 //================================================================================
 void GMSHPlugin_Mesher::genGMSHMesh
-        (ShapeGeomMap& theShapeGeomMap, 
-         std::unordered_map<gp_Pnt, const SMDS_MeshNode*> & theUniqBoundNodes,
-         int meshDimension)
+        (std::unordered_map<gp_Pnt, const SMDS_MeshNode*> & theUniqBoundNodes,
+         std::vector<TopoDS_Shape>& theMeshedShapes,
+         int meshDimension,
+         ShapeGeomMap* theShapeGeomMap,
+         const TopoDS_Shape& theShape)
 {
   //work with GMSH
   gmsh::initialize();
@@ -581,81 +592,40 @@ void GMSHPlugin_Mesher::genGMSHMesh
     return aUniqPoints[p];
   };
 
-  std::vector<TopoDS_Shape> meshedShapes;
-  switch (meshDimension)
+  if(meshDimension == 3 && theShapeGeomMap && !theShapeGeomMap->empty())
   {
-    case 3:
-      for (const auto& shapeGeomPair : theShapeGeomMap)
+    for (const auto& shapeGeomPair : *theShapeGeomMap)
+    {
+      const TopoDS_Shape& anOrigSolid = shapeGeomPair.first;
+      const GeomVector& aTriangles = shapeGeomPair.second;
+
+      std::vector<int> aSurfTags;
+      for (const GeomPtr& triangPtr : aTriangles)
       {
-        const TopoDS_Shape& anOrigSolid = shapeGeomPair.first;
-        const GeomVector& aTriangles = shapeGeomPair.second;
+        const GeomElement& triang = *triangPtr;
 
-        std::vector<int> aSurfTags;
-        for (const GeomPtr& triangPtr : aTriangles)
-        {
-          const GeomElement& triang = *triangPtr;
-          if (!triang.isTriangle())
-            continue;
+        int v1 = getPointIndex(triang.p1);
+        int v2 = getPointIndex(triang.p2);
+        int v3 = getPointIndex(triang.p3);
 
-          int v1 = getPointIndex(triang.p1);
-          int v2 = getPointIndex(triang.p2);
-          int v3 = getPointIndex(triang.p3);
+        int l1 = gmsh::model::geo::addLine(v1, v2);
+        int l2 = gmsh::model::geo::addLine(v2, v3);
+        int l3 = gmsh::model::geo::addLine(v3, v1);
 
-          int l1 = gmsh::model::geo::addLine(v1, v2);
-          int l2 = gmsh::model::geo::addLine(v2, v3);
-          int l3 = gmsh::model::geo::addLine(v3, v1);
-
-          int aLoop = gmsh::model::geo::addCurveLoop({l1, l2, l3});
-          int aSurf = gmsh::model::geo::addPlaneSurface({aLoop});
-          aSurfTags.push_back(aSurf);
-        }
-
-        int aSurfLoop = gmsh::model::geo::addSurfaceLoop(aSurfTags);
-        int aVolume = gmsh::model::geo::addVolume({aSurfLoop});
-        _shapeGMSHMap[aVolume] = anOrigSolid;
-        meshedShapes.push_back(anOrigSolid);
+        int aLoop = gmsh::model::geo::addCurveLoop({l1, l2, l3});
+        int aSurf = gmsh::model::geo::addPlaneSurface({aLoop});
+        aSurfTags.push_back(aSurf);
       }
-      break;
 
-    case 2:
-      for (const auto& shapeGeomPair : theShapeGeomMap)
-      {
-        const TopoDS_Shape& face = shapeGeomPair.first;
-        const GeomVector& edgeVec = shapeGeomPair.second;
-
-        std::vector<int> curveLoops;
-        std::vector<int> lineTags;
-        for (const GeomPtr& edgePtr : edgeVec)
-        {
-          if (!edgePtr && lineTags.size() >= 3)
-          {
-            int loopTag = gmsh::model::geo::addCurveLoop(lineTags);
-            curveLoops.push_back(loopTag);
-            lineTags.clear();
-            continue;
-          }
-
-          const GeomElement& edge = *edgePtr;
-          if (!edge.isEdge())
-            continue;
-
-          int id1 = getPointIndex(edge.p1);
-          int id2 = getPointIndex(edge.p2);
-          int lineTag = gmsh::model::geo::addLine(id1, id2);
-          lineTags.push_back(lineTag);
-        }
-
-        if (!curveLoops.empty())
-        {
-          int surfTag = gmsh::model::geo::addPlaneSurface(curveLoops);
-          _shapeGMSHMap[surfTag] = face;
-          meshedShapes.push_back(face);
-        }
-      }
-      break;
-
-    default:
-      break; // Unsupported mesh dimension
+      int aSurfLoop = gmsh::model::geo::addSurfaceLoop(aSurfTags);
+      int aVolume = gmsh::model::geo::addVolume({aSurfLoop});
+      _shapeGMSHMap[aVolume] = anOrigSolid;
+      theMeshedShapes.push_back(anOrigSolid);
+    }
+  }
+  else if(meshDimension ==2 && !theShape.IsNull())
+  {
+    gModel_temp->importOCCShape((void*)&theShape);
   }
 
   gmsh::model::geo::synchronize();
@@ -685,14 +655,14 @@ void GMSHPlugin_Mesher::genGMSHMesh
   }
 
   meshDimension == 2 ? fillSMesh2D(gModel_temp, _mesh->GetMeshDS(), true) : fillSMesh3D(gModel_temp, _mesh->GetMeshDS());
-  for (const auto& s : meshedShapes)
+  for (const auto& s : theMeshedShapes)
   {
     _meshedShapes.insert(s);
   }
   _shapeGMSHMap.clear();
 
   //does not really work as expected, it is only possible to work through api with models that were added by gmsh::model::add("mesh");
-  GModel::setCurrent(_gModel); 
+  GModel::setCurrent(_gModel);
 }
 
 //================================================================================
@@ -1271,7 +1241,6 @@ void GMSHPlugin_Mesher::fillSMesh2D(GModel* theGModel,
   for ( GModel::fiter it = theGModel->firstFace(); it != theGModel->lastFace(); ++it)
   {
     GFace *gFace = *it;
-    int tag = gFace->tag();
 
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
     // Gmsh since version 4.3 is now producing extra surface and mesh when
@@ -1284,7 +1253,7 @@ void GMSHPlugin_Mesher::fillSMesh2D(GModel* theGModel,
 #endif
 
     // GET topoFace CORRESPONDING TO gFace
-    TopoDS_Face topoFace;
+    TopoDS_Face topoFace = *((TopoDS_Face*)gFace->getNativePtr());
     std::vector< ShapeBounds > topoFaces;
 
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
@@ -1293,8 +1262,10 @@ void GMSHPlugin_Mesher::fillSMesh2D(GModel* theGModel,
     if ( gFace->geomType() != GEntity::CompoundSurface )
 #endif
     {
-      topoFace = (_shapeGMSHMap.find(tag) != _shapeGMSHMap.end()) ?
-        TopoDS::Face(_shapeGMSHMap[tag]) : *((TopoDS_Face*)gFace->getNativePtr());
+      if(_faceGMSHMap.find(topoFace) != _faceGMSHMap.end())
+      {
+        topoFace = TopoDS::Face(_faceGMSHMap[topoFace]);
+      }
 
       if (gFace->getVisibility() == 0) // belongs to a compound
       {
@@ -1335,7 +1306,6 @@ void GMSHPlugin_Mesher::fillSMesh2D(GModel* theGModel,
   for ( GModel::fiter it = theGModel->firstFace(); it != theGModel->lastFace(); ++it)
   {
     GFace *gFace = *it;
-    int tag = gFace->tag();
 
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
     if ( _compounds.size() && gFace->geomType() == GEntity::DiscreteSurface )
@@ -1349,14 +1319,16 @@ void GMSHPlugin_Mesher::fillSMesh2D(GModel* theGModel,
     if ( !isCompound && gFace->getVisibility() == 0 )
       continue;  // belongs to a compound
 
-    TopoDS_Face topoFace;
+    TopoDS_Face topoFace = *((TopoDS_Face*)gFace->getNativePtr());
     std::vector< ShapeBounds > topoFaces;
     if ( isCompound )
       getBoundsOfShapes( gFace, topoFaces );
     else
     {
-      topoFace = (_shapeGMSHMap.find(tag) != _shapeGMSHMap.end()) ?
-        TopoDS::Face(_shapeGMSHMap[tag]): *((TopoDS_Face*)gFace->getNativePtr());
+      if(_faceGMSHMap.find(topoFace) != _faceGMSHMap.end())
+      {
+        topoFace = TopoDS::Face(_faceGMSHMap[topoFace]);
+      }
     }
 
     if(_meshedShapes.find(topoFace) != _meshedShapes.end())
@@ -2028,7 +2000,8 @@ bool GMSHPlugin_Mesher::fill3DViscousLayerAndQuadAdapt()
   }
 
   // generate mesh with created solids
-  genGMSHMesh(solidsToTriangles, aUniqBoundNodes, 3);
+  std::vector<TopoDS_Shape> meshedShapes;
+  genGMSHMesh(aUniqBoundNodes, meshedShapes, 3, &solidsToTriangles);
 
   return true;
 }
@@ -2044,9 +2017,14 @@ bool GMSHPlugin_Mesher::fill2DViscousLayer()
   SMESH_ComputeErrorPtr error = SMESH_ComputeError::New();
   SMESH_MesherHelper helper(*_mesh);
 
-  ShapeGeomMap aShapeEdgeMap;
+  //ShapeGeomMap aShapeEdgeMap;
+
+  TopoDS_Compound compoundOfFaces;
+  BRep_Builder builder;
+  builder.MakeCompound(compoundOfFaces);
 
   SMESH_ProxyMesh::Ptr viscousMesh;
+   std::vector<TopoDS_Shape> meshedShapes;
   for (GModel::fiter it = _gModel->firstFace(); it != _gModel->lastFace(); ++it)
   {
     GFace *gFace = *it;
@@ -2067,44 +2045,58 @@ bool GMSHPlugin_Mesher::fill2DViscousLayer()
     std::vector<TopoDS_Wire> topo_wires;
     topo_wires.reserve(wires.size());
 
-    GeomVector edgeVector;
+    //GeomVector edgeVector;
+    std::vector<TopoDS_Wire> allWires;
     for (const auto& wire : wires)
     {
       std::vector<const SMDS_MeshNode*> aNodes;
       const vector<UVPtStruct>& uvPtVec = wire->GetUVPtStruct();
       const smIdType nbSegments = wire->NbPoints() - 1;
 
-      // Collect nodes and register them in the unique node map
-      for ( int i = 0; i < nbSegments; ++i )
-      {
-        const SMDS_MeshNode * aNode = uvPtVec[ i ].node;
-        aNodes.push_back(aNode);
-
-        gp_Pnt aNodePnt(aNode->X(), aNode->Y(), aNode->Z());
-        aUniqBoundNodes.insert(std::make_pair(aNodePnt, aNode));
-      }
-
       // Build wire from mesh nodes
-      for (size_t i = 0; i < aNodes.size(); ++i) 
+      BRepBuilderAPI_MakeWire mkWire;
+      for (int i = 0; i < nbSegments; ++i) 
       {
-        const auto* n1 = aNodes[i];
-        const auto* n2 = aNodes[(i + 1) % aNodes.size()];
+        const SMDS_MeshNode* n1 = uvPtVec[i].node;
+        const SMDS_MeshNode* n2 = uvPtVec[i + 1].node;
 
         gp_Pnt p1(n1->X(), n1->Y(), n1->Z());
         gp_Pnt p2(n2->X(), n2->Y(), n2->Z());
-    
-        auto geomPtr = std::make_unique<GeomElement>(p1, p2);
-        edgeVector.push_back(std::move(geomPtr));
+
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(p1, p2);
+        mkWire.Add(edge);
+
+        aUniqBoundNodes.insert({ p1, n1 });
       }
-      edgeVector.push_back(nullptr); // Add empty edge to close the wire
+      if (mkWire.IsDone())
+      {
+        allWires.push_back(mkWire.Wire());
+      }
     }
 
-    if ( !edgeVector.empty() )
-      aShapeEdgeMap[anOrigFace] = std::move(edgeVector);
+    // create new face and add it to compoundOfFaces
+    if (!allWires.empty()) 
+    {
+      BRepBuilderAPI_MakeFace mkFace;
+      mkFace = BRepBuilderAPI_MakeFace(allWires[0]);
+      if(allWires.size() > 1)
+      {
+        for (size_t i = 1; i < allWires.size(); ++i) {
+          mkFace.Add(allWires[i]);
+        }
+      }
+
+      if (mkFace.IsDone()) 
+      {
+        TopoDS_Face newFace = mkFace.Face();
+        builder.Add(compoundOfFaces, newFace);
+        _faceGMSHMap[newFace] = anOrigFace;
+        meshedShapes.push_back(anOrigFace);
+      }
+    }
   }
 
-  // Generate GMSH mesh from the constructed geometry
-  genGMSHMesh(aShapeEdgeMap, aUniqBoundNodes, 2);
+  genGMSHMesh(aUniqBoundNodes, meshedShapes, 2, nullptr, compoundOfFaces);
   return true;
 }
 

@@ -119,24 +119,15 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 
 //================================================================================
 // Structure for mesh geometry elements used to build a new mesh.
-// - Edge: two points - used for 2d mesh generation
 // - Triangle: three points - used for 3d mesh generation
 //================================================================================
   struct GeomElement
   {
     gp_Pnt p1, p2, p3;
-    bool hasP3;
-
-    //edge
-    GeomElement(const gp_Pnt& point1, const gp_Pnt& point2)
-      : p1(point1), p2(point2), p3(), hasP3(false) {}
 
     //triangle
     GeomElement(const gp_Pnt& point1, const gp_Pnt& point2, const gp_Pnt& point3)
-      : p1(point1), p2(point2), p3(point3), hasP3(true) {}
-
-    bool isTriangle() const { return hasP3; }
-    bool isEdge() const { return !hasP3; }
+      : p1(point1), p2(point2), p3(point3) {}
   };
 
 //================================================================================
@@ -152,6 +143,7 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 
   std::unordered_set<TopoDS_Shape> _meshedShapes;
   std::unordered_map<int, TopoDS_Shape > _shapeGMSHMap;
+  std::unordered_map<TopoDS_Shape, TopoDS_Shape > _faceGMSHMap;
   std::map< const MVertex *, const SMDS_MeshNode* > _nodeMap;
   std::map< const MVertex *, const SMDS_MeshNode* > _premeshednodeMap; // used for the SA version
   const StdMeshers_ViscousLayers* _viscousLayersHyp;
@@ -177,9 +169,23 @@ class GMSHPLUGIN_EXPORT GMSHPlugin_Mesher
 //================================================================================
   void adapt2DQuadMeshAndComputeGmsh3D();
 
-  void genGMSHMesh(ShapeGeomMap& theShapeGeomMap, 
-                   std::unordered_map<gp_Pnt, const SMDS_MeshNode*> & theUniqBoundNodes,
-                   int meshDimension);
+  /**
+   * @brief Generates a GMSH mesh.
+   * Depending on the mesh dimension, either `theShape` or `theShapeGeomMap` is used:
+   * - For 2D meshes (e.g. surface meshing), `theShape` must be provided and is used as the input geometry.
+   * - For 3D meshes (e.g. volume meshing), `theShapeGeomMap` must be provided and maps each shape to its geometric definition.
+   *
+   * @param theUniqBoundNodes   Map of unique boundary nodes used for gmsh mesh transition to smesh mesh.
+   * @param theMeshedShapes     Auxiliary vector to collect resulting TopoDS_Shapes that were meshed.
+   * @param meshDimension       Mesh dimension (2 or 3).
+   * @param theShapeGeomMap     Optional geometry map used for 3D meshing.
+   * @param theShape            Optional shape used for 2D meshing.
+   */
+  void genGMSHMesh(std::unordered_map<gp_Pnt, const SMDS_MeshNode*> & theUniqBoundNodes,
+                   std::vector<TopoDS_Shape>& theMeshedShapes,
+                   int meshDimension,
+                   ShapeGeomMap* theShapeGeomMap = nullptr,
+                   const TopoDS_Shape& theShape = TopoDS_Shape());
 
   void prepareTriangles(const std::map<const SMDS_MeshElement*, bool, TIDCompare>& theListElements,
                         std::unordered_map<gp_Pnt, const SMDS_MeshNode*> & theUniqBoundNodes,

@@ -28,7 +28,7 @@ from salome.smesh.smesh_algorithm import Mesh_Algorithm
 # import GMSHPlugin module if possible
 noGMSHPlugin = 0
 try:
-    import GMSHPlugin
+    from salome.kernel import GMSHPlugin
 except ImportError:
     noGMSHPlugin = 1
     pass

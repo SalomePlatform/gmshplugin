@@ -4,7 +4,7 @@
 This file creates a compound solid of cube and a sphere. Then meshes them with 
 Gmsh using compound mesh feature of Gmsh.
 '''
-import salome
+from salome.kernel import salome
 salome.salome_init()
 
 #-------------------------------------
@@ -52,7 +52,7 @@ Fuse_1_1, Group_1_1, = SHAPERSTUDY.shape(model.featureStringId(Fuse_1))
 ### SMESH component
 #-------------------------------------
 
-import  SMESH, SALOMEDS
+from salome.kernel import SMESH, SALOMEDS
 from salome.smesh import smeshBuilder
 
 smesh = smeshBuilder.New()

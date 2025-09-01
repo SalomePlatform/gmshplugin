@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 import sys
-import salome
+from salome.kernel import salome
 
 salome.salome_init()
-import salome_notebook
+from salome.kernel import salome_notebook
 notebook = salome_notebook.NoteBook()
 
 #-------------------------------------
@@ -33,7 +33,7 @@ Compound_1_1, = SHAPERSTUDY.shape(model.featureStringId(Compound_1))
 #-------------------------------------
 ### SMESH component
 #-------------------------------------
-import  SMESH, SALOMEDS
+from salome.kernel import SMESH, SALOMEDS
 from salome.smesh import smeshBuilder
 
 smesh = smeshBuilder.New()

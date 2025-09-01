@@ -4,7 +4,7 @@
 This file creates a compound surface of a square and a circle. Then meshes them with 
 Gmsh using compound mesh feature of Gmsh.
 '''
-import salome
+from salome.kernel import salome
 salome.salome_init()
 
 #-------------------------------------
@@ -93,7 +93,7 @@ Shell_1_1, Group_2_1, = SHAPERSTUDY.shape(model.featureStringId(Shell_1))
 ### SMESH component
 #-------------------------------------
 
-import  SMESH
+from salome.kernel import SMESH
 from salome.smesh import smeshBuilder
 smesh = smeshBuilder.New()
 

@@ -1,6 +1,6 @@
 # -*- coding: iso-8859-1 -*-
 
-import salome
+from salome.kernel import salome
 
 salome.salome_init()
 
@@ -10,7 +10,7 @@ geompy = geomBuilder.New()
 from salome.smesh import smeshBuilder
 smesh = smeshBuilder.New()
 
-from salome.GMSHPlugin import GMSHPluginBuilder
+from salome.kernel.GMSHPlugin import GMSHPluginBuilder
 
 # create a box
 Box = geompy.MakeBoxDXDYDZ(10, 10, 10)

@@ -13,13 +13,13 @@ This file creates a square using GEOM then meshes the same using Gmsh's differen
 This file is solely for the propose of testing and we do overwrite the meshes.
 '''
 
-import salome
+from salome.kernel import salome
 salome.salome_init()
 
 #------------------------------------ 
 # GEOM: Creating a square of size 10^2
 #------------------------------------
-import GEOM
+from salome.kernel import GEOM
 from salome.geom import geomBuilder
 
 geompy = geomBuilder.New()
@@ -28,7 +28,7 @@ Face_1 = geompy.MakeFaceHW(10, 10, 1)
 #------------------------------------ 
 # SMESH: Using Gmsh algorithm with size (1,5) (min,max)
 #------------------------------------
-import  SMESH
+from salome.kernel import  SMESH
 from salome.smesh import smeshBuilder
 smesh = smeshBuilder.New()
 

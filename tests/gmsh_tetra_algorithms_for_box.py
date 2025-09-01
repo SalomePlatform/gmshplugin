@@ -12,13 +12,13 @@ This file creates a box using GEOM then meshes the same using Gmsh's different a
 This file is solely for the propose of testing and we do overwrite the meshes.
 '''
 
-import salome
+from salome.kernel import salome
 salome.salome_init()
 
 #------------------------------------ 
 # GEOM: Creating a box of size 10^3
 #------------------------------------
-import GEOM
+from salome.kernel import GEOM
 from salome.geom import geomBuilder
 
 geompy = geomBuilder.New()
@@ -27,7 +27,7 @@ Box_1 = geompy.MakeBoxDXDYDZ(10, 10, 10)
 #------------------------------------ 
 # SMESH: Using Gmsh algorithm with size (3,10) (min,max)
 #------------------------------------
-import  SMESH
+from salome.kernel import  SMESH
 from salome.smesh import smeshBuilder
 smesh = smeshBuilder.New()
 

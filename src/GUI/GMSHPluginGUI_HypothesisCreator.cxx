@@ -617,7 +617,7 @@ bool GMSHPluginGUI_HypothesisCreator::storeParamsToHypo( const GmshHypothesisDat
       h->UnsetCompoundOnEntry(entry.toLatin1().constData());
     }
   }
-  catch(const SALOME::SALOME_Exception& ex)
+  catch(const SALOME_CMOD::SALOME_Exception& ex)
   {
     SalomeApp_Tools::QtCatchCorbaException(ex);
     ok = false;

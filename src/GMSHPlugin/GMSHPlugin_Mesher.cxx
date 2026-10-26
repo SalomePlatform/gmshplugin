@@ -18,6 +18,11 @@
 // See http://www.alneos.com/ or email : contact@alneos.fr
 // See http://www.salome-platform.org/ or email : webmaster.salome@opencascade.com
 //
+
+#if defined(__APPLE__) && defined(__arm64__)
+#include <mach/arm/thread_status.h>
+#endif
+
 #include "GMSHPlugin_Mesher.hxx"
 #include "GMSHPlugin_Hypothesis_2D.hxx"
 
@@ -64,8 +69,13 @@
 #include <gmsh/Context.h>
 #endif
 
+#if !defined(__APPLE__)
 #if GMSH_MAJOR_VERSION >=4 && GMSH_MINOR_VERSION >=8
 #include <omp.h>
+#endif
+#else
+// macOS: AppleClang has no OpenMP runtime (omp.h)
+#include <thread>
 #endif
 
 using namespace std;
@@ -259,7 +269,14 @@ void GMSHPlugin_Mesher::SetMaxThreadsGmsh()
     _maxThreads = 1;
   }
   else
+  {
+#if defined(__APPLE__)
+    unsigned int nbThreads = std::thread::hardware_concurrency();
+    _maxThreads = nbThreads > 0 ? nbThreads : 1;
+#else
     _maxThreads = omp_get_max_threads();
+#endif
+  }
 }
 #endif
 

@@ -170,7 +170,7 @@ FIND_PACKAGE(SalomeGMSH REQUIRED)
 # GMSH >= 4.11 ships a CMake config package (gmshConfig.cmake) which takes
 # precedence over FindGMSH.cmake, so GMSH_LIBRARIES ends up empty while the
 # imported target gmsh::shared is defined. Map it so downstream targets link.
-IF(NOT GMSH_LIBRARIES AND TARGET gmsh::shared)
+IF(APPLE AND NOT GMSH_LIBRARIES AND TARGET gmsh::shared)
   SET(GMSH_LIBRARIES gmsh::shared)
 ENDIF()
 

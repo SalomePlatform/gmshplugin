@@ -75,6 +75,7 @@
 #endif
 #else
 // macOS: AppleClang has no OpenMP runtime (omp.h)
+#include <cstdlib>
 #include <thread>
 #endif
 
@@ -269,14 +270,20 @@ void GMSHPlugin_Mesher::SetMaxThreadsGmsh()
     _maxThreads = 1;
   }
   else
-  {
 #if defined(__APPLE__)
-    unsigned int nbThreads = std::thread::hardware_concurrency();
+  {
+    // same default as omp_get_max_threads(): OMP_NUM_THREADS if set,
+    // otherwise the number of hardware threads
+    long nbThreads = 0;
+    if ( const char* ompNumThreads = std::getenv( "OMP_NUM_THREADS" ))
+      nbThreads = std::strtol( ompNumThreads, nullptr, 10 );
+    if ( nbThreads <= 0 )
+      nbThreads = std::thread::hardware_concurrency();
     _maxThreads = nbThreads > 0 ? nbThreads : 1;
+  }
 #else
     _maxThreads = omp_get_max_threads();
 #endif
-  }
 }
 #endif
 

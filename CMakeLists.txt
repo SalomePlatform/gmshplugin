@@ -167,6 +167,13 @@ ENDIF(EXISTS ${SMESH_ROOT_DIR})
 ##
 FIND_PACKAGE(SalomeGMSH REQUIRED)
 
+# GMSH >= 4.11 ships a CMake config package (gmshConfig.cmake) which takes
+# precedence over FindGMSH.cmake, so GMSH_LIBRARIES ends up empty while the
+# imported target gmsh::shared is defined. Map it so downstream targets link.
+IF(APPLE AND NOT GMSH_LIBRARIES AND TARGET gmsh::shared)
+  SET(GMSH_LIBRARIES gmsh::shared)
+ENDIF()
+
 # Detection summary:
 SALOME_PACKAGE_REPORT_AND_CHECK()
 

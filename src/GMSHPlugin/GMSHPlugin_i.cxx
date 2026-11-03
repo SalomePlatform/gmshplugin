@@ -18,6 +18,11 @@
 // See http://www.alneos.com/ or email : contact@alneos.fr
 // See http://www.salome-platform.org/ or email : webmaster.salome@opencascade.com
 //
+
+#if defined(__APPLE__) && defined(__arm64__)
+#include <mach/arm/thread_status.h>
+#endif
+
 #include "utilities.h"
 
 #include "GMSHPlugin_Hypothesis_i.hxx"

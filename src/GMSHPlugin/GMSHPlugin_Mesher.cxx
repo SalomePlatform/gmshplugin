@@ -283,7 +283,7 @@ void GMSHPlugin_Mesher::SetMaxThreadsGmsh()
   }
 #else
     _maxThreads = omp_get_max_threads();
-#endif
+#endif // APPLE
 }
 #endif
 
